@@ -5,7 +5,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/user_model.dart';
 
-final String modelType = 'gemini-2.5-flash';
+final List<String> fallbackModels = ['gemini-3.5-flash', 'gemini-2.5-flash'];
 
 class ParsedItem {
   final String name;
@@ -62,14 +62,6 @@ class OcrService {
         throw Exception('GEMINI_API_KEY not found in .env file');
       }
 
-      final model = GenerativeModel(
-        model: modelType,
-        apiKey: apiKey,
-        generationConfig: GenerationConfig(
-          responseMimeType: 'application/json',
-        ),
-      );
-
       // Prompt Gemini to parse the receipt
       final prompt =
           '''
@@ -115,43 +107,66 @@ Receipt Text:
 $rawText
 ''';
 
-      final response = await model.generateContent([Content.text(prompt)]);
-      final jsonString = response.text;
+      Exception? lastException;
 
-      if (jsonString == null || jsonString.isEmpty) {
-        throw Exception('Failed to generate JSON from Gemini');
-      }
-
-      // Parse the JSON response
-      final Map<String, dynamic> data = jsonDecode(jsonString);
-
-      final items = <ParsedItem>[];
-      if (data['items'] != null) {
-        for (final item in data['items']) {
-          items.add(
-            ParsedItem(
-              name: item['name'] ?? 'Unknown Item',
-              price: (item['price'] ?? 0.0).toDouble(),
+      for (final modelName in fallbackModels) {
+        try {
+          final model = GenerativeModel(
+            model: modelName,
+            apiKey: apiKey,
+            generationConfig: GenerationConfig(
+              responseMimeType: 'application/json',
             ),
           );
+
+          final response = await model.generateContent([Content.text(prompt)]);
+          final jsonString = response.text;
+
+          if (jsonString == null || jsonString.isEmpty) {
+            throw Exception(
+              'Failed to generate JSON from Gemini model $modelName',
+            );
+          }
+
+          // Parse the JSON response
+          final Map<String, dynamic> data = jsonDecode(jsonString);
+
+          final items = <ParsedItem>[];
+          if (data['items'] != null) {
+            for (final item in data['items']) {
+              items.add(
+                ParsedItem(
+                  name: item['name'] ?? 'Unknown Item',
+                  price: (item['price'] ?? 0.0).toDouble(),
+                ),
+              );
+            }
+          }
+
+          final taxPercentage = (data['taxPercentage'] ?? 0.0).toDouble();
+          final serviceChargePercentage =
+              (data['serviceChargePercentage'] ?? 0.0).toDouble();
+          final discountPercentage = (data['discountPercentage'] ?? 0.0)
+              .toDouble();
+          final discountAmount = (data['discountAmount'] ?? 0.0).toDouble();
+          final taxBeforeDiscount = data['taxBeforeDiscount'] ?? false;
+
+          return ParsedReceipt(
+            items: items,
+            taxPercentage: taxPercentage,
+            serviceChargePercentage: serviceChargePercentage,
+            discountPercentage: discountPercentage,
+            discountAmount: discountAmount,
+            taxBeforeDiscount: taxBeforeDiscount,
+          );
+        } catch (e) {
+          debugPrint('Model $modelName failed: $e');
+          lastException = e is Exception ? e : Exception(e.toString());
         }
       }
 
-      final taxPercentage = (data['taxPercentage'] ?? 0.0).toDouble();
-      final serviceChargePercentage = (data['serviceChargePercentage'] ?? 0.0)
-          .toDouble();
-      final discountPercentage = (data['discountPercentage'] ?? 0.0).toDouble();
-      final discountAmount = (data['discountAmount'] ?? 0.0).toDouble();
-      final taxBeforeDiscount = data['taxBeforeDiscount'] ?? false;
-
-      return ParsedReceipt(
-        items: items,
-        taxPercentage: taxPercentage,
-        serviceChargePercentage: serviceChargePercentage,
-        discountPercentage: discountPercentage,
-        discountAmount: discountAmount,
-        taxBeforeDiscount: taxBeforeDiscount,
-      );
+      throw lastException ??
+          Exception('All Gemini models failed to process receipt');
     } catch (e) {
       debugPrint('Error processing receipt: $e');
       rethrow; // Handle display error
@@ -176,12 +191,6 @@ $rawText
         apiKey == 'YOUR_GEMINI_API_KEY_HERE') {
       throw Exception('GEMINI_API_KEY not found in .env file');
     }
-
-    final model = GenerativeModel(
-      model: modelType,
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(responseMimeType: 'application/json'),
-    );
 
     final itemsText = items
         .asMap()
@@ -214,42 +223,55 @@ Respond ONLY with valid JSON matching this schema:
 }
 ''';
 
-    try {
-      final response = await model.generateContent([Content.text(prompt)]);
-      final jsonString = response.text;
+    for (final modelName in fallbackModels) {
+      try {
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: apiKey,
+          generationConfig: GenerationConfig(
+            responseMimeType: 'application/json',
+          ),
+        );
 
-      debugPrint('Gemini Assignment JSON: $jsonString');
+        final response = await model.generateContent([Content.text(prompt)]);
+        final jsonString = response.text;
 
-      if (jsonString == null || jsonString.isEmpty) {
-        return {};
-      }
+        debugPrint('Gemini Assignment JSON ($modelName): $jsonString');
 
-      String cleanJson = jsonString;
-      if (cleanJson.contains('```json')) {
-        cleanJson = cleanJson.split('```json')[1].split('```')[0].trim();
-      } else if (cleanJson.contains('```')) {
-        cleanJson = cleanJson.split('```')[1].split('```')[0].trim();
-      }
-
-      final Map<String, dynamic> data = jsonDecode(cleanJson);
-      final Map<int, List<String>> result = {};
-
-      data.forEach((key, value) {
-        final index = int.tryParse(key);
-        if (index != null) {
-          if (value is List) {
-            result[index] = value.map((e) => e.toString()).toList();
-          } else if (value is String) {
-            result[index] = [value];
-          }
+        if (jsonString == null || jsonString.isEmpty) {
+          continue; // Try next model
         }
-      });
 
-      debugPrint('Parsed Assignment Map: $result');
-      return result;
-    } catch (e) {
-      debugPrint('Error assigning items with AI: $e');
-      return {};
+        String cleanJson = jsonString;
+        if (cleanJson.contains('```json')) {
+          cleanJson = cleanJson.split('```json')[1].split('```')[0].trim();
+        } else if (cleanJson.contains('```')) {
+          cleanJson = cleanJson.split('```')[1].split('```')[0].trim();
+        }
+
+        final Map<String, dynamic> data = jsonDecode(cleanJson);
+        final Map<int, List<String>> result = {};
+
+        data.forEach((key, value) {
+          final index = int.tryParse(key);
+          if (index != null) {
+            if (value is List) {
+              result[index] = value.map((e) => e.toString()).toList();
+            } else if (value is String) {
+              result[index] = [value];
+            }
+          }
+        });
+
+        debugPrint('Parsed Assignment Map ($modelName): $result');
+        return result; // Success, return result
+      } catch (e) {
+        debugPrint('Error assigning items with AI ($modelName): $e');
+        // Continue to the next model
+      }
     }
+
+    // If all models fail, return empty map
+    return {};
   }
 }
