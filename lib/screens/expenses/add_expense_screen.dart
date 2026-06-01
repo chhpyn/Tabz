@@ -43,6 +43,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _serviceChargePercentageController = TextEditingController();
   final _discountController = TextEditingController();
   bool _isDiscountPercentage = false;
+  bool _calculateTaxBeforeDiscount = false;
   bool _isOcrLoading = false;
   bool _autoSyncAmountFromItems = false;
 
@@ -157,10 +158,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   double get _discountedItemsTotal => _itemsTotal - _discountAmount;
 
-  double get _taxAmount => _discountedItemsTotal * _taxPercentage / 100;
+  double get _taxAmount =>
+      (_calculateTaxBeforeDiscount ? _itemsTotal : _discountedItemsTotal) *
+      _taxPercentage /
+      100;
 
   double get _serviceChargeAmount =>
-      _discountedItemsTotal * _serviceChargePercentage / 100;
+      (_calculateTaxBeforeDiscount ? _itemsTotal : _discountedItemsTotal) *
+      _serviceChargePercentage /
+      100;
 
   double get _itemizedTaxAndServiceChargeTotal =>
       _taxAmount + _serviceChargeAmount;
@@ -338,6 +344,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         } else {
           _discountController.text = '';
         }
+        _calculateTaxBeforeDiscount = receipt.taxBeforeDiscount;
         _autoSyncAmountFromItems = true;
 
         // Ensure at least one row exists

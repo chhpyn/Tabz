@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/top_banner.dart';
 import '../expenses/expense_detail_screen.dart';
 import '../groups/group_detail_screen.dart';
+import '../friends/friends_screen.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -199,6 +200,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             ),
                           );
                         }
+                      } else if (notif.type == NotificationType.friendRequest) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const FriendsScreen(),
+                          ),
+                        );
+                      } else if (notif.type == NotificationType.groupRequest) {
+                        Navigator.popUntil(context, (route) => route.isFirst);
                       }
                     },
                     child: _NotificationTile(

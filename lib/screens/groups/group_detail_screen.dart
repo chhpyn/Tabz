@@ -568,14 +568,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                                                   context,
                                                   'Reminder sent to ${fromUser.firstName}',
                                                   accentColor:
-                                                      AppColors
-                                                          .avatarColors[fromUser
-                                                              .id
-                                                              .hashCode
-                                                              .abs() %
-                                                          AppColors
-                                                              .avatarColors
-                                                              .length],
+                                                      AppColors.primary,
                                                 );
                                               }
                                             },

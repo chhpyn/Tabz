@@ -5,7 +5,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/user_model.dart';
 
-final String modelType = 'gemini-3.5-flash';
+final String modelType = 'gemini-2.5-flash';
 
 class ParsedItem {
   final String name;
@@ -20,6 +20,7 @@ class ParsedReceipt {
   final double serviceChargePercentage;
   final double discountPercentage;
   final double discountAmount;
+  final bool taxBeforeDiscount;
 
   ParsedReceipt({
     required this.items,
@@ -27,6 +28,7 @@ class ParsedReceipt {
     required this.serviceChargePercentage,
     required this.discountPercentage,
     required this.discountAmount,
+    required this.taxBeforeDiscount,
   });
 }
 
@@ -48,6 +50,7 @@ class OcrService {
           serviceChargePercentage: 0.0,
           discountPercentage: 0.0,
           discountAmount: 0.0,
+          taxBeforeDiscount: false,
         );
       }
 
@@ -85,9 +88,12 @@ Rules:
    - Cash, Change, Visa, Mastercard, Credit Card
 4. TAX: Extract SST or GST percentage as taxPercentage (e.g. 6 for 6%)
 5. SERVICE CHARGE: Extract service charge percentage as serviceChargePercentage (e.g. 10 for 10%)
-7. ITEM NAMES: Use the English name if other language are present, if there is no English name, use Unknown Item. Fix obvious OCR typos.
+7. ITEM NAMES: Use the English name if other language are present. Fix obvious OCR typos.
 8. PRICES: Always positive floats in MYR
 9. Extract the discount amount or percentage if any (e.g. "Discount 5%", "Discount 5.00", etc)
+10. If discount amount is deducted for only few items, calculate the total and include it in the discount amount
+11. If discount amount is deducted from the total bill, include it in the discount amount.
+12. Determine if the tax (SST/GST) and service charge are calculated based on the subtotal BEFORE the discount or AFTER the discount. Set "taxBeforeDiscount" to true if calculated before discount, false otherwise.
 
 Respond ONLY with valid JSON. No explanation, no markdown, no backticks.
 Schema:
@@ -99,9 +105,10 @@ Schema:
     }
   ],
   "taxPercentage": 0.0,
-  "serviceChargePercentage": 0.0
+  "serviceChargePercentage": 0.0,
   "discountPercentage": 0.0,
-  "discountAmount": 0.0
+  "discountAmount": 0.0,
+  "taxBeforeDiscount": false
 }
 
 Receipt Text:
@@ -135,6 +142,7 @@ $rawText
           .toDouble();
       final discountPercentage = (data['discountPercentage'] ?? 0.0).toDouble();
       final discountAmount = (data['discountAmount'] ?? 0.0).toDouble();
+      final taxBeforeDiscount = data['taxBeforeDiscount'] ?? false;
 
       return ParsedReceipt(
         items: items,
@@ -142,6 +150,7 @@ $rawText
         serviceChargePercentage: serviceChargePercentage,
         discountPercentage: discountPercentage,
         discountAmount: discountAmount,
+        taxBeforeDiscount: taxBeforeDiscount,
       );
     } catch (e) {
       debugPrint('Error processing receipt: $e');

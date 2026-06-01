@@ -415,12 +415,6 @@ class _FriendsScreenState extends State<FriendsScreen>
                         ),
                         child: Column(
                           children: [
-                            Icon(
-                              Icons.waving_hand_rounded,
-                              size: 52,
-                              color: theme.textMuted,
-                            ),
-                            const SizedBox(height: 16),
                             Text(
                               'No friends yet',
                               style: GoogleFonts.inter(
@@ -561,7 +555,10 @@ class _FriendTile extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.inter(color: theme.textMuted)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: theme.textMuted),
+            ),
           ),
           TextButton(
             onPressed: () {
