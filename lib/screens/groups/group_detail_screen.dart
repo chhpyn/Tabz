@@ -35,37 +35,43 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     final expenseProvider = context.watch<ExpenseProvider>();
 
     final group = groupsProvider.getGroupById(widget.groupId);
-    if (group == null) return const Scaffold(body: Center(child: Text('Group not found')));
+    if (group == null)
+      return const Scaffold(body: Center(child: Text('Group not found')));
 
     final members = groupsProvider.getMembersOfGroup(widget.groupId);
     final expenses = expenseProvider.getExpensesForGroup(widget.groupId);
     final totalSpent = expenseProvider.getTotalSpentForGroup(widget.groupId);
-    final balances = expenseProvider.calculateNetBalances(widget.groupId, group.memberIds);
-    var settlements = expenseProvider.calculateSettlements(widget.groupId, group.memberIds);
+    final balances = expenseProvider.calculateNetBalances(
+      widget.groupId,
+      group.memberIds,
+    );
+    var settlements = expenseProvider.calculateSettlements(
+      widget.groupId,
+      group.memberIds,
+    );
     final currentUserId = auth.currentUser!.id;
-    
-    // Optimistic UI updates
-    double optimisticUserBalance = balances[currentUserId] ?? 0;
-    for (final sId in _processingSettlements) {
-      final s = settlements.firstWhere((s) => s.id == sId, orElse: () => SettlementModel(id: '', fromUserId: '', toUserId: '', amount: 0));
-      if (s.id.isNotEmpty) {
-        if (s.fromUserId == currentUserId) optimisticUserBalance += s.amount;
-        if (s.toUserId == currentUserId) optimisticUserBalance -= s.amount;
-      }
-    }
-    
-    settlements = settlements.where((s) => !_processingSettlements.contains(s.id)).toList();
+
+    settlements = settlements
+        .where((s) => !_processingSettlements.contains(s.id))
+        .toList();
     settlements.sort((a, b) {
-      final aInvolved = a.fromUserId == currentUserId || a.toUserId == currentUserId;
-      final bInvolved = b.fromUserId == currentUserId || b.toUserId == currentUserId;
+      final aInvolved =
+          a.fromUserId == currentUserId || a.toUserId == currentUserId;
+      final bInvolved =
+          b.fromUserId == currentUserId || b.toUserId == currentUserId;
       if (aInvolved && !bInvolved) return -1;
       if (!aInvolved && bInvolved) return 1;
       return 0;
     });
 
+    double totalOwed = 0;
+    double totalGet = 0;
+    for (final s in settlements) {
+      if (s.fromUserId == currentUserId) totalOwed += s.amount;
+      if (s.toUserId == currentUserId) totalGet += s.amount;
+    }
+
     final currencyFmt = NumberFormat.currency(symbol: 'RM ', decimalDigits: 2);
-    final isOwed = optimisticUserBalance > 0.01;
-    final isOwing = optimisticUserBalance < -0.01;
 
     return Scaffold(
       backgroundColor: theme.background,
@@ -111,10 +117,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     // Group name and emoji
                     Row(
                       children: [
-                        Text(
-                          group.emoji,
-                          style: const TextStyle(fontSize: 32),
-                        ),
+                        Text(group.emoji, style: const TextStyle(fontSize: 32)),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -163,42 +166,83 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isOwed
-                                    ? 'You should receive'
-                                    : isOwing
-                                        ? 'You owe'
-                                        : 'All settled',
-                                style: GoogleFonts.inter(
-                                  color: isOwed
-                                      ? AppColors.success
-                                      : isOwing
-                                          ? AppColors.accent
-                                          : theme.textMuted,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
+                          child: (totalGet <= 0.01 && totalOwed <= 0.01)
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'All settled',
+                                      style: GoogleFonts.inter(
+                                        color: theme.textMuted,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '—',
+                                      style: GoogleFonts.inter(
+                                        color: theme.textMuted,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    if (totalGet > 0.01)
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'You receive',
+                                            style: GoogleFonts.inter(
+                                              color: AppColors.success,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            currencyFmt.format(totalGet),
+                                            style: GoogleFonts.inter(
+                                              color: AppColors.success,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    if (totalGet > 0.01 && totalOwed > 0.01)
+                                      const SizedBox(width: 16),
+                                    if (totalOwed > 0.01)
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'You owe',
+                                            style: GoogleFonts.inter(
+                                              color: AppColors.accent,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            currencyFmt.format(totalOwed),
+                                            style: GoogleFonts.inter(
+                                              color: AppColors.accent,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                                Text(
-                                  isOwed || isOwing
-                                      ? currencyFmt.format(optimisticUserBalance.abs())
-                                      : '—',
-                                style: GoogleFonts.inter(
-                                  color: isOwed
-                                      ? AppColors.success
-                                      : isOwing
-                                          ? AppColors.accent
-                                          : theme.textMuted,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -245,225 +289,206 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                           style: GoogleFonts.inter(
                             color: theme.textPrimary,
                             fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    ...settlements.map((settlement) {
-                      final fromUser =
-                          groupsProvider.getUserById(settlement.fromUserId);
-                      final toUser =
-                          groupsProvider.getUserById(settlement.toUserId);
-                      if (fromUser == null || toUser == null) {
-                        return const SizedBox.shrink();
-                      }
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        ...settlements.map((settlement) {
+                          final fromUser = groupsProvider.getUserById(
+                            settlement.fromUserId,
+                          );
+                          final toUser = groupsProvider.getUserById(
+                            settlement.toUserId,
+                          );
+                          if (fromUser == null || toUser == null) {
+                            return const SizedBox.shrink();
+                          }
 
-                      final isCurrentUserPayer =
-                          currentUserId == settlement.fromUserId;
-                      final isCurrentUserReceiver =
-                          currentUserId == settlement.toUserId;
-                      final isCurrentUserInvolved =
-                          isCurrentUserPayer || isCurrentUserReceiver;
+                          final isCurrentUserPayer =
+                              currentUserId == settlement.fromUserId;
+                          final isCurrentUserReceiver =
+                              currentUserId == settlement.toUserId;
+                          final isCurrentUserInvolved =
+                              isCurrentUserPayer || isCurrentUserReceiver;
 
-                      return AnimatedOpacity(
-                          opacity: settlement.isPaid ? 0.5 : 1.0,
-                          duration: const Duration(milliseconds: 300),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: settlement.isPaid
-                                  ? theme.card.withValues(alpha: 0.7)
-                                  : theme.card,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    // From (payer)
-                                    Column(
-                                      children: [
-                                        MemberAvatar(
-                                            user: fromUser, radius: 22),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          fromUser.firstName,
-                                          style: GoogleFonts.inter(
-                                            color: theme.textSecondary,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    // Arrow + amount
-                                    Expanded(
-                                      child: Column(
+                          return AnimatedOpacity(
+                            opacity: settlement.isPaid ? 0.5 : 1.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(18),
+                              decoration: BoxDecoration(
+                                color: settlement.isPaid
+                                    ? theme.card.withValues(alpha: 0.7)
+                                    : theme.card,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      // From (payer)
+                                      Column(
                                         children: [
-                                          Text(
-                                            currencyFmt
-                                                .format(settlement.amount),
-                                            style: GoogleFonts.inter(
-                                              color: theme.textPrimary,
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                          MemberAvatar(
+                                            user: fromUser,
+                                            radius: 22,
                                           ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Container(
-                                                width: 40,
-                                                height: 2,
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    colors:
-                                                        settlement.isPaid
-                                                            ? [
-                                                                AppColors
-                                                                    .success,
-                                                                AppColors
-                                                                    .success
-                                                              ]
-                                                            : [
-                                                                AppColors
-                                                                    .accent,
-                                                                AppColors
-                                                                    .primary
-                                                              ],
-                                                  ),
-                                                ),
-                                              ),
-                                              Icon(
-                                                Icons.arrow_forward_rounded,
-                                                color: settlement.isPaid
-                                                    ? AppColors.success
-                                                    : AppColors.primary,
-                                                size: 16,
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
+                                          const SizedBox(height: 6),
                                           Text(
-                                            settlement.isPaid
-                                                ? 'Paid'
-                                                : 'Pending',
+                                            fromUser.firstName,
                                             style: GoogleFonts.inter(
-                                              color: settlement.isPaid
-                                                  ? AppColors.success
-                                                  : theme.textMuted,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
+                                              color: theme.textSecondary,
+                                              fontSize: 12,
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    // To (receiver)
-                                    Column(
-                                      children: [
-                                        MemberAvatar(user: toUser, radius: 22),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          toUser.firstName,
-                                          style: GoogleFonts.inter(
-                                            color: theme.textSecondary,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                if (isCurrentUserInvolved) ...[
-                                  const SizedBox(height: 12),
-                                  // Action buttons
-                                  Row(
-                                    children: [
+                                      // Arrow + amount
                                       Expanded(
-                                        child: GestureDetector(
-                                          onTap: () async {
-                                            setState(() {
-                                              _processingSettlements.add(settlement.id);
-                                            });
-                                            // Record the payment
-                                            await expenseProvider.recordPayment(
-                                              groupId: group.id,
-                                              fromUserId: settlement.fromUserId,
-                                              toUserId: settlement.toUserId,
-                                              amount: settlement.amount,
-                                            );
-                                            if (context.mounted) {
-                                              TopBanner.show(
-                                                context,
-                                                'Payment recorded successfully!',
-                                                backgroundColor: AppColors.success,
-                                              );
-                                            }
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(vertical: 10),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.success.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(24),
-                                              border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              currencyFmt.format(
+                                                settlement.amount,
+                                              ),
+                                              style: GoogleFonts.inter(
+                                                color: theme.textPrimary,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.center,
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
                                               children: [
-                                                const Icon(
-                                                  Icons.check_circle_outline_rounded,
-                                                  color: AppColors.success,
-                                                  size: 18,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  'Mark as Settled',
-                                                  style: GoogleFonts.inter(
-                                                    color: AppColors.success,
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w600,
+                                                Container(
+                                                  width: 40,
+                                                  height: 2,
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      colors: settlement.isPaid
+                                                          ? [
+                                                              AppColors.success,
+                                                              AppColors.success,
+                                                            ]
+                                                          : [
+                                                              AppColors.accent,
+                                                              AppColors.primary,
+                                                            ],
+                                                    ),
                                                   ),
+                                                ),
+                                                Icon(
+                                                  Icons.arrow_forward_rounded,
+                                                  color: settlement.isPaid
+                                                      ? AppColors.success
+                                                      : AppColors.primary,
+                                                  size: 16,
                                                 ),
                                               ],
                                             ),
-                                          ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              settlement.isPaid
+                                                  ? 'Paid'
+                                                  : 'Pending',
+                                              style: GoogleFonts.inter(
+                                                color: settlement.isPaid
+                                                    ? AppColors.success
+                                                    : theme.textMuted,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      if (isCurrentUserPayer) ...[
-                                        const SizedBox(width: 10),
+                                      // To (receiver)
+                                      Column(
+                                        children: [
+                                          MemberAvatar(
+                                            user: toUser,
+                                            radius: 22,
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            toUser.firstName,
+                                            style: GoogleFonts.inter(
+                                              color: theme.textSecondary,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  if (isCurrentUserInvolved) ...[
+                                    const SizedBox(height: 12),
+                                    // Action buttons
+                                    Row(
+                                      children: [
                                         Expanded(
                                           child: GestureDetector(
-                                            onTap: () {
-                                              TopBanner.show(
-                                                context,
-                                                'Payment gateway integration coming soon!',
-                                                backgroundColor: AppColors.primary,
-                                              );
+                                            onTap: () async {
+                                              setState(() {
+                                                _processingSettlements.add(
+                                                  settlement.id,
+                                                );
+                                              });
+                                              // Record the payment
+                                              await expenseProvider
+                                                  .recordPayment(
+                                                    groupId: group.id,
+                                                    fromUserId:
+                                                        settlement.fromUserId,
+                                                    toUserId:
+                                                        settlement.toUserId,
+                                                    amount: settlement.amount,
+                                                  );
+                                              if (context.mounted) {
+                                                TopBanner.show(
+                                                  context,
+                                                  'Payment recorded successfully!',
+                                                  backgroundColor:
+                                                      AppColors.success,
+                                                );
+                                              }
                                             },
                                             child: Container(
-                                              padding: const EdgeInsets.symmetric(vertical: 10),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 10,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: AppColors.primary,
-                                                borderRadius: BorderRadius.circular(24),
+                                                color: AppColors.success
+                                                    .withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(24),
+                                                border: Border.all(
+                                                  color: AppColors.success
+                                                      .withValues(alpha: 0.3),
+                                                ),
                                               ),
                                               child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 children: [
                                                   const Icon(
-                                                    Icons.payment_rounded,
-                                                    color: Colors.white,
+                                                    Icons
+                                                        .check_circle_outline_rounded,
+                                                    color: AppColors.success,
                                                     size: 18,
                                                   ),
-                                                  const SizedBox(width: 6),
+                                                  const SizedBox(width: 8),
                                                   Text(
-                                                    'Settle Now',
+                                                    'Mark as Settled',
                                                     style: GoogleFonts.inter(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w600,
+                                                      color: AppColors.success,
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600,
                                                     ),
                                                   ),
                                                 ],
@@ -471,55 +496,120 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                                             ),
                                           ),
                                         ),
-                                      ],
-                                      if (isCurrentUserReceiver) ...[
-                                        const SizedBox(width: 10),
-                                        // Remind button
-                                        GestureDetector(
-                                          onTap: () {
-                                            final currentUser = context.read<AuthProvider>().currentUser;
-                                            if (currentUser != null) {
-                                              context.read<NotificationProvider>().sendReminder(
-                                                toUserId: fromUser.id,
-                                                fromUserName: currentUser.firstName,
-                                                amount: settlement.amount,
-                                                groupName: group.name,
-                                                groupId: group.id,
-                                                groupEmoji: group.emoji,
-                                                settlementId: settlement.id,
-                                              );
-                                              
-                                              TopBanner.show(
-                                                context,
-                                                'Reminder sent to ${fromUser.firstName}',
-                                                accentColor: AppColors.avatarColors[fromUser.id.hashCode.abs() % AppColors.avatarColors.length],
-                                              );
-                                            }
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.all(10),
-                                            decoration: BoxDecoration(
-                                              color: theme.surface,
-                                              borderRadius: BorderRadius.circular(24),
-                                              border: Border.all(color: theme.cardBorder),
-                                            ),
-                                            child: const Icon(
-                                              Icons.notifications_rounded,
-                                              color: AppColors.primary,
-                                              size: 18,
+                                        if (isCurrentUserPayer) ...[
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                TopBanner.show(
+                                                  context,
+                                                  'Payment gateway integration coming soon!',
+                                                  backgroundColor:
+                                                      AppColors.primary,
+                                                );
+                                              },
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 10,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.primary,
+                                                  borderRadius:
+                                                      BorderRadius.circular(24),
+                                                ),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.payment_rounded,
+                                                      color: Colors.white,
+                                                      size: 18,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      'Settle Now',
+                                                      style: GoogleFonts.inter(
+                                                        color: Colors.white,
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                        ],
+                                        if (isCurrentUserReceiver) ...[
+                                          const SizedBox(width: 10),
+                                          // Remind button
+                                          GestureDetector(
+                                            onTap: () {
+                                              final currentUser = context
+                                                  .read<AuthProvider>()
+                                                  .currentUser;
+                                              if (currentUser != null) {
+                                                context
+                                                    .read<
+                                                      NotificationProvider
+                                                    >()
+                                                    .sendReminder(
+                                                      toUserId: fromUser.id,
+                                                      fromUserName:
+                                                          currentUser.firstName,
+                                                      amount: settlement.amount,
+                                                      groupName: group.name,
+                                                      groupId: group.id,
+                                                      groupEmoji: group.emoji,
+                                                      settlementId:
+                                                          settlement.id,
+                                                    );
+
+                                                TopBanner.show(
+                                                  context,
+                                                  'Reminder sent to ${fromUser.firstName}',
+                                                  accentColor:
+                                                      AppColors
+                                                          .avatarColors[fromUser
+                                                              .id
+                                                              .hashCode
+                                                              .abs() %
+                                                          AppColors
+                                                              .avatarColors
+                                                              .length],
+                                                );
+                                              }
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.all(10),
+                                              decoration: BoxDecoration(
+                                                color: theme.surface,
+                                                borderRadius:
+                                                    BorderRadius.circular(24),
+                                                border: Border.all(
+                                                  color: theme.cardBorder,
+                                                ),
+                                              ),
+                                              child: const Icon(
+                                                Icons.notifications_rounded,
+                                                color: AppColors.primary,
+                                                size: 18,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ],
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                      );
-                    }),
-                  ],
+                          );
+                        }),
+                      ],
                     ),
                 ],
               ),
@@ -581,25 +671,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, i) {
-                    final expense = expenses[i];
-                    final payer = groupsProvider.getUserById(expense.payerId)!;
-                    return ExpenseCard(
-                      expense: expense,
-                      payer: payer,
-                      currentUserId: currentUserId,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ExpenseDetailScreen(expense: expense),
-                        ),
+                delegate: SliverChildBuilderDelegate((ctx, i) {
+                  final expense = expenses[i];
+                  final payer = groupsProvider.getUserById(expense.payerId)!;
+                  return ExpenseCard(
+                    expense: expense,
+                    payer: payer,
+                    currentUserId: currentUserId,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ExpenseDetailScreen(expense: expense),
                       ),
-                    );
-                  },
-                  childCount: expenses.length,
-                ),
+                    ),
+                  );
+                }, childCount: expenses.length),
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -612,10 +698,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => AddExpenseScreen(
-                groupId: widget.groupId,
-                members: members,
-              ),
+              builder: (_) =>
+                  AddExpenseScreen(groupId: widget.groupId, members: members),
             ),
           ),
           backgroundColor: theme.contrast,

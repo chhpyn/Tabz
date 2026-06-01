@@ -80,15 +80,13 @@ class _HomeScreenState extends State<HomeScreen>
     double toReceive = 0;
 
     for (final group in groups) {
-      final balances = expenseProvider.calculateNetBalances(
+      final settlements = expenseProvider.calculateSettlements(
         group.id,
         group.memberIds,
       );
-      final myBalance = balances[currentUserId] ?? 0;
-      if (myBalance < -0.01) {
-        toTransfer += myBalance.abs();
-      } else if (myBalance > 0.01) {
-        toReceive += myBalance;
+      for (final s in settlements) {
+        if (s.fromUserId == currentUserId) toTransfer += s.amount;
+        if (s.toUserId == currentUserId) toReceive += s.amount;
       }
     }
 
@@ -261,16 +259,6 @@ class _HomeScreenState extends State<HomeScreen>
                     children: [
                       Expanded(
                         child: _StatChip(
-                          label: 'To transfer',
-                          value: currencyFmt.format(toTransfer),
-                          icon: Icons.outbound_rounded,
-                          color: AppColors.error,
-                          theme: theme,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _StatChip(
                           label: 'To receive',
                           value: currencyFmt.format(toReceive),
                           icon: Icons.move_to_inbox_rounded,
@@ -278,11 +266,21 @@ class _HomeScreenState extends State<HomeScreen>
                           theme: theme,
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _StatChip(
+                          label: 'To transfer',
+                          value: currencyFmt.format(toTransfer),
+                          icon: Icons.outbound_rounded,
+                          color: AppColors.error,
+                          theme: theme,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
-              // My Groups Section Title 
+              // My Groups Section Title
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 28, 24, 14),
@@ -592,11 +590,11 @@ class _StackedGroupCarouselState extends State<_StackedGroupCarousel> {
                         child: Opacity(
                           opacity: opacity,
                           child: Align(
-                              alignment: widget.groups.length > 1
-                                  ? Alignment.bottomCenter
-                                  : Alignment.topCenter,
-                              child: _buildCard(group),
-                            ),
+                            alignment: widget.groups.length > 1
+                                ? Alignment.bottomCenter
+                                : Alignment.topCenter,
+                            child: _buildCard(group),
+                          ),
                         ),
                       ),
                     ),
@@ -706,7 +704,11 @@ class _StatChip extends StatelessWidget {
           ),
           Text(
             label,
-            style: GoogleFonts.inter(color: theme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500),
+            style: GoogleFonts.inter(
+              color: theme.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -747,7 +749,9 @@ class _GroupCard extends StatelessWidget {
           color: theme.card,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: theme.cardBorder.withValues(alpha: 0.5), // Subtle border to distinguish layers
+            color: theme.cardBorder.withValues(
+              alpha: 0.5,
+            ), // Subtle border to distinguish layers
             width: 1,
           ),
         ),
@@ -918,7 +922,7 @@ class _GroupCard extends StatelessWidget {
   }
 }
 
-// Create Group Sheet 
+// Create Group Sheet
 class _CreateGroupSheet extends StatefulWidget {
   const _CreateGroupSheet();
 
@@ -1029,7 +1033,9 @@ class _CreateGroupSheetState extends State<_CreateGroupSheet> {
                               : theme.card,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: selected ? AppColors.primary : theme.cardBorder,
+                            color: selected
+                                ? AppColors.primary
+                                : theme.cardBorder,
                             width: selected ? 2 : 1,
                           ),
                         ),
@@ -1047,17 +1053,34 @@ class _CreateGroupSheetState extends State<_CreateGroupSheet> {
                         builder: (ctx) {
                           return AlertDialog(
                             backgroundColor: theme.background,
-                            title: Text('Enter emoji', style: GoogleFonts.inter(color: theme.textPrimary, fontWeight: FontWeight.bold)),
+                            title: Text(
+                              'Enter emoji',
+                              style: GoogleFonts.inter(
+                                color: theme.textPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             content: TextField(
                               controller: _customEmojiController,
                               autofocus: true,
-                              decoration: const InputDecoration(hintText: 'Paste emoji here'),
+                              decoration: const InputDecoration(
+                                hintText: 'Paste emoji here',
+                              ),
                               style: const TextStyle(fontSize: 22),
                               maxLines: 1,
                             ),
                             actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                              TextButton(onPressed: () => Navigator.pop(ctx, _customEmojiController.text.trim()), child: const Text('Use')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(
+                                  ctx,
+                                  _customEmojiController.text.trim(),
+                                ),
+                                child: const Text('Use'),
+                              ),
                             ],
                           );
                         },
@@ -1077,7 +1100,14 @@ class _CreateGroupSheetState extends State<_CreateGroupSheet> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: theme.cardBorder),
                       ),
-                      child: Center(child: Text(_customEmojiController.text.trim().isNotEmpty ? _customEmojiController.text.trim() : '+', style: const TextStyle(fontSize: 20))),
+                      child: Center(
+                        child: Text(
+                          _customEmojiController.text.trim().isNotEmpty
+                              ? _customEmojiController.text.trim()
+                              : '+',
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1186,7 +1216,10 @@ class _CreateGroupSheetState extends State<_CreateGroupSheet> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : Text('Create Group', style: TextStyle(color: Colors.white)),
+                      : Text(
+                          'Create Group',
+                          style: TextStyle(color: Colors.white),
+                        ),
                 ),
               ),
             ],
@@ -1431,13 +1464,13 @@ class _GroupInvitationsView extends StatelessWidget {
           if (context.mounted) {
             Navigator.pop(context); // Close the dialog
             if (res == AddFriendResult.success) {
-                TopBanner.show(
-                  context,
-                  isRequest
-                      ? 'Friend request accepted! You can now accept the group invitation.'
-                      : 'Friend added! You can now accept the group invitation.',
-                  backgroundColor:AppColors.success,
-                );
+              TopBanner.show(
+                context,
+                isRequest
+                    ? 'Friend request accepted! You can now accept the group invitation.'
+                    : 'Friend added! You can now accept the group invitation.',
+                backgroundColor: AppColors.success,
+              );
             } else if (res == AddFriendResult.alreadyFriend) {
               TopBanner.show(context, 'Already a friend!');
             } else {
