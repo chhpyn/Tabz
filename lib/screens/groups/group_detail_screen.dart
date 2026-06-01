@@ -7,7 +7,6 @@ import '../../core/providers/groups_provider.dart';
 import '../../core/providers/expense_provider.dart';
 import '../../core/providers/notification_provider.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/models/settlement_model.dart';
 import '../../core/widgets/top_banner.dart';
 import '../widgets/expense_card.dart';
 import '../widgets/member_avatar.dart';
@@ -35,16 +34,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     final expenseProvider = context.watch<ExpenseProvider>();
 
     final group = groupsProvider.getGroupById(widget.groupId);
-    if (group == null)
+    if (group == null) {
       return const Scaffold(body: Center(child: Text('Group not found')));
+    }
 
     final members = groupsProvider.getMembersOfGroup(widget.groupId);
     final expenses = expenseProvider.getExpensesForGroup(widget.groupId);
     final totalSpent = expenseProvider.getTotalSpentForGroup(widget.groupId);
-    final balances = expenseProvider.calculateNetBalances(
-      widget.groupId,
-      group.memberIds,
-    );
     var settlements = expenseProvider.calculateSettlements(
       widget.groupId,
       group.memberIds,
