@@ -5,6 +5,8 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/user_model.dart';
 
+final String modelType = 'gemini-3.5-flash';
+
 class ParsedItem {
   final String name;
   final double price;
@@ -16,11 +18,15 @@ class ParsedReceipt {
   final List<ParsedItem> items;
   final double taxPercentage;
   final double serviceChargePercentage;
+  final double discountPercentage;
+  final double discountAmount;
 
   ParsedReceipt({
     required this.items,
     required this.taxPercentage,
     required this.serviceChargePercentage,
+    required this.discountPercentage,
+    required this.discountAmount,
   });
 }
 
@@ -40,6 +46,8 @@ class OcrService {
           items: [],
           taxPercentage: 0.0,
           serviceChargePercentage: 0.0,
+          discountPercentage: 0.0,
+          discountAmount: 0.0,
         );
       }
 
@@ -52,7 +60,7 @@ class OcrService {
       }
 
       final model = GenerativeModel(
-        model: 'gemini-3.5-flash',
+        model: modelType,
         apiKey: apiKey,
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
@@ -62,12 +70,27 @@ class OcrService {
       // Prompt Gemini to parse the receipt
       final prompt =
           '''
-You are an expert receipt parser. Extract the items and prices from this raw OCR receipt text. 
-Also extract the tax percentage (e.g., 6 for 6% SST, GST) and service charge percentage (e.g., 10 for 10% Service Charge) applied.
-Ignore tips, Visa/Mastercard/Credit Card lines, totals, subtotals, and cash changes.
-Fix any obvious typos in item names.
+You are an expert receipt parser specializing in Malaysian restaurant receipts (mix of English, Chinese, Malay, Tamil).
 
-Respond ONLY with valid JSON matching exactly this schema:
+Extract all purchased items and their prices from the receipt text below.
+
+Rules:
+1. QUANTITY: If a line shows "2 x 2.50/ea", the unit price is 2.50, NOT the total 5.00
+2. MULTI-LINE ITEMS: Some items span multiple lines — combine them into one entry using the base item name
+3. IGNORE these lines completely:
+   - Subtotal, Total, Net Total, Balance
+   - Tax lines (SST, GST, Service Tax)
+   - Rounding Adjustment
+   - Modifier notes (e.g. "NO SHALLOTS", "Less Sugar", "Hot", "Cold")
+   - Cash, Change, Visa, Mastercard, Credit Card
+4. TAX: Extract SST or GST percentage as taxPercentage (e.g. 6 for 6%)
+5. SERVICE CHARGE: Extract service charge percentage as serviceChargePercentage (e.g. 10 for 10%)
+7. ITEM NAMES: Use the English name if other language are present, if there is no English name, use Unknown Item. Fix obvious OCR typos.
+8. PRICES: Always positive floats in MYR
+9. Extract the discount amount or percentage if any (e.g. "Discount 5%", "Discount 5.00", etc)
+
+Respond ONLY with valid JSON. No explanation, no markdown, no backticks.
+Schema:
 {
   "items": [
     {
@@ -77,6 +100,8 @@ Respond ONLY with valid JSON matching exactly this schema:
   ],
   "taxPercentage": 0.0,
   "serviceChargePercentage": 0.0
+  "discountPercentage": 0.0,
+  "discountAmount": 0.0
 }
 
 Receipt Text:
@@ -108,11 +133,15 @@ $rawText
       final taxPercentage = (data['taxPercentage'] ?? 0.0).toDouble();
       final serviceChargePercentage = (data['serviceChargePercentage'] ?? 0.0)
           .toDouble();
+      final discountPercentage = (data['discountPercentage'] ?? 0.0).toDouble();
+      final discountAmount = (data['discountAmount'] ?? 0.0).toDouble();
 
       return ParsedReceipt(
         items: items,
         taxPercentage: taxPercentage,
         serviceChargePercentage: serviceChargePercentage,
+        discountPercentage: discountPercentage,
+        discountAmount: discountAmount,
       );
     } catch (e) {
       debugPrint('Error processing receipt: $e');
@@ -140,7 +169,7 @@ $rawText
     }
 
     final model = GenerativeModel(
-      model: 'gemini-3.5-flash',
+      model: modelType,
       apiKey: apiKey,
       generationConfig: GenerationConfig(responseMimeType: 'application/json'),
     );
