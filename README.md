@@ -4,10 +4,6 @@ A collaborative expense splitter that reads your receipts and divides the bill y
 
 ## 🏆 About This Project
 
-**Tabz** is a full-stack Flutter mobile application that eliminates the friction of managing shared expenses. Built with a robust Firebase backend, it features intelligent OCR receipt parsing powered by Gemini AI, allowing users to effortlessly snap a photo of their receipt, extract line items, and distribute costs accurately. With a fully realized social financial ecosystem for organizing groups and tracking real-time settlements, Tabz demonstrates strong proficiency in modern mobile UI/UX design, real-time database management, and Generative AI integration.
-
-## Overview
-
 Tabz simplifies group expense tracking and settlement. Whether you're splitting rent with roommates, sharing a vacation budget, or tracking group outings, Tabz makes it effortless to:
 - **Capture receipts** using OCR (Optical Character Recognition)
 - **Split expenses** using multiple strategies
@@ -48,7 +44,6 @@ This project showcases:
 **Backend & Services:**
 - Firebase Authentication
 - Firebase Cloud Firestore (Database)
-- Google Sign-In
 - Google ML Kit Text Recognition (OCR)
 - Google Generative AI (AI-powered receipt analysis)
 
