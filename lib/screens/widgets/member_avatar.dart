@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import '../../core/models/user_model.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -33,8 +32,9 @@ class _MemberAvatarState extends State<MemberAvatar> {
   @override
   Widget build(BuildContext context) {
     final theme = AppDynColors.of(context);
-    final hasImage =
-        widget.user.profileImageUrl != null && !_imageLoadFailed;
+    final hasImage = widget.user.profileImageUrl != null &&
+        widget.user.profileImageUrl!.startsWith('lib/assets/') &&
+        !_imageLoadFailed;
     final avatarColor = MemberAvatar.getConsistentAvatarColor(widget.user.id);
 
     final avatar = Container(
@@ -48,13 +48,14 @@ class _MemberAvatarState extends State<MemberAvatar> {
             : null,
         image: hasImage
             ? DecorationImage(
-                image: widget.user.profileImageUrl!.startsWith('http')
-                    ? NetworkImage(widget.user.profileImageUrl!)
-                        as ImageProvider
-                    : FileImage(File(widget.user.profileImageUrl!)),
+                image: AssetImage(widget.user.profileImageUrl!),
                 fit: BoxFit.cover,
                 onError: (exception, stackTrace) {
-                  setState(() => _imageLoadFailed = true);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() => _imageLoadFailed = true);
+                    }
+                  });
                 },
               )
             : null,

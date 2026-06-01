@@ -28,7 +28,6 @@ dependencies:
   flutter_dotenv: ^6.0.1
   flutter_slidable: ^4.0.3
   shared_preferences: ^2.5.5
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -49,5 +48,6 @@ flutter:
   assets:
     - .env
     - lib/assets/icon/tabz.png
+    - lib/assets/avatars/
 
 

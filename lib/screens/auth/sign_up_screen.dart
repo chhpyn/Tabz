@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'dart:io';
+ 
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../app_shell.dart';
@@ -24,10 +22,14 @@ class _SignUpScreenState extends State<SignUpScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  File? _selectedImage;
+  String? _selectedAvatar;
   late AnimationController _animCtrl;
   bool _isGoogleSignUp = false;
-  final ImagePicker _imagePicker = ImagePicker();
+  
+  final List<String> _availableAvatars = List.generate(
+    12, 
+    (index) => 'lib/assets/avatars/${index + 1}.png'
+  );
 
   @override
   void initState() {
@@ -67,61 +69,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    try {
-      // Request gallery permission
-      final status = await Permission.photos.request();
-
-      if (status.isDenied) {
-        if (mounted) {
-          TopBanner.show(
-            context,
-            'Gallery permission is required to upload photos',
-            backgroundColor: AppColors.error,
-          );
-        }
-        return;
-      }
-
-      if (status.isPermanentlyDenied) {
-        if (mounted) {
-          TopBanner.show(
-            context,
-            'Gallery permission is permanently denied. Please enable it in settings.',
-            backgroundColor: AppColors.error,
-            actionLabel: 'Open Settings',
-            onActionPressed: openAppSettings,
-          );
-        }
-        return;
-      }
-
-      final pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        TopBanner.show(
-          context,
-          'Failed to pick image',
-          backgroundColor: AppColors.error,
-        );
-      }
-    }
-  }
-
-  Future<void> _removeImage() async {
-    setState(() {
-      _selectedImage = null;
-    });
-  }
+ 
 
   Future<void> _signUp() async {
     if (_formKey.currentState?.validate() ?? false) {
@@ -134,7 +82,7 @@ class _SignUpScreenState extends State<SignUpScreen>
         success = await authProvider.signUpWithGoogle(
           _nameController.text.trim(),
           _usernameController.text.trim(),
-          _selectedImage?.path,
+          _selectedAvatar,
         );
       } else {
         // Regular email/password sign up
@@ -143,7 +91,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           _emailController.text.trim(),
           _passwordController.text,
           _usernameController.text.trim(),
-          _selectedImage?.path,
+          _selectedAvatar,
         );
       }
 
@@ -232,62 +180,45 @@ class _SignUpScreenState extends State<SignUpScreen>
                                     ),
                                   ),
                                   const SizedBox(height: 20),
-                                  GestureDetector(
-                                    onTap: _pickImage,
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 300,
-                                      ),
-                                      width: 80,
-                                      height: 80,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[100],
-                                        shape: BoxShape.circle,
-                                        image: _selectedImage != null
-                                            ? DecorationImage(
-                                                image: FileImage(
-                                                  _selectedImage!,
-                                                ),
+                                  SizedBox(
+                                    height: 60,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _availableAvatars.length,
+                                      itemBuilder: (context, index) {
+                                        final avatarPath = _availableAvatars[index];
+                                        final isSelected = _selectedAvatar == avatarPath;
+                                        return GestureDetector(
+                                          onTap: () => setState(() => _selectedAvatar = avatarPath),
+                                          child: Container(
+                                            margin: const EdgeInsets.only(right: 12),
+                                            width: 50,
+                                            height: 50,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: isSelected
+                                                  ? Border.all(color: AppColors.primary, width: 3)
+                                                  : null,
+                                              image: DecorationImage(
+                                                image: AssetImage(avatarPath),
                                                 fit: BoxFit.cover,
-                                              )
-                                            : null,
-                                      ),
-                                      child: _selectedImage == null
-                                          ? Icon(
-                                              Icons.add_a_photo_rounded,
-                                              color: theme.textMuted,
-                                              size: 28,
-                                            )
-                                          : null,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  Text(
-                                    _selectedImage == null
-                                        ? 'Upload Photo'
-                                        : 'Photo uploaded',
-                                    style: GoogleFonts.inter(
-                                      color: _selectedImage == null
-                                          ? theme.textSecondary
-                                          : AppColors.success,
-                                      fontSize: 13,
-                                      fontWeight: _selectedImage == null
-                                          ? FontWeight.normal
-                                          : FontWeight.w600,
-                                    ),
-                                  ),
-                                  if (_selectedImage != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: GestureDetector(
-                                        onTap: _removeImage,
-                                        child: Text(
-                                          'Remove',
-                                          style: GoogleFonts.inter(
-                                            color: AppColors.error,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
                                           ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (_selectedAvatar != null)
+                                    GestureDetector(
+                                      onTap: () => setState(() => _selectedAvatar = null),
+                                      child: Text(
+                                        'Remove Avatar',
+                                        style: GoogleFonts.inter(
+                                          color: AppColors.error,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     ),

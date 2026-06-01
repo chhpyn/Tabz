@@ -128,19 +128,7 @@ class AuthProvider with ChangeNotifier {
       final cleanUsername = username.replaceAll('@', '').toLowerCase().trim();
       String? savedImagePath = profileImageUrl;
 
-      // Save image to app documents if provided
-      if (profileImageUrl != null && File(profileImageUrl).existsSync()) {
-        try {
-          final appDir = await getApplicationDocumentsDirectory();
-          final imageName = 'profile_${userCredential.user!.uid}.jpg';
-          final savedImage =
-              await File(profileImageUrl).copy('${appDir.path}/$imageName');
-          savedImagePath = savedImage.path;
-        } catch (e) {
-          // If image save fails, continue without it
-          savedImagePath = null;
-        }
-      }
+      // We directly use the provided profileImageUrl (e.g., 'lib/assets/avatars/3.png')
 
       // Create user document in Firestore
       final newUser = UserModel(
@@ -188,17 +176,9 @@ class AuthProvider with ChangeNotifier {
       final cleanUsername = username.replaceAll('@', '').toLowerCase().trim();
       String? imageUrl = _currentUser!.profileImageUrl;
 
-      // Save new image to app documents if provided
-      if (imagePath != null && File(imagePath).existsSync()) {
-        try {
-          final appDir = await getApplicationDocumentsDirectory();
-          final imageName = 'profile_${_currentUser!.id}.jpg';
-          final savedImage = await File(imagePath).copy('${appDir.path}/$imageName');
-          imageUrl = savedImage.path;
-        } catch (e) {
-          // If image save fails, keep existing image
-          imageUrl = _currentUser!.profileImageUrl;
-        }
+      // We directly use the provided imagePath (e.g., 'lib/assets/avatars/3.png')
+      if (imagePath != null) {
+        imageUrl = imagePath;
       }
 
       final updatedUser = UserModel(
@@ -306,19 +286,7 @@ class AuthProvider with ChangeNotifier {
       final cleanUsername = username.replaceAll('@', '').toLowerCase().trim();
       String? savedImagePath = profileImageUrl ?? _tempGooglePhotoUrl;
 
-      // Save image to app documents if provided
-      if (profileImageUrl != null && File(profileImageUrl).existsSync()) {
-        try {
-          final appDir = await getApplicationDocumentsDirectory();
-          final imageName = 'profile_${_tempGoogleUid}.jpg';
-          final savedImage =
-              await File(profileImageUrl).copy('${appDir.path}/$imageName');
-          savedImagePath = savedImage.path;
-        } catch (e) {
-          // If image save fails, continue without new image
-          savedImagePath = _tempGooglePhotoUrl;
-        }
-      }
+      // We directly use the provided profileImageUrl (e.g., 'lib/assets/avatars/3.png')
 
       // Create user document in Firestore using the stored Google UID
       final newUser = UserModel(

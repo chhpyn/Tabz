@@ -64,6 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1055991376090',
     projectId: 'tabz-expense-splitter',
     storageBucket: 'tabz-expense-splitter.firebasestorage.app',
+    androidClientId: '1055991376090-5nun3np3vvtjl1dal3ap7p9logf4v5sl.apps.googleusercontent.com',
     iosClientId: '1055991376090-6is0rm841869ggrfspp36aqvcddtm4c5.apps.googleusercontent.com',
     iosBundleId: 'com.example.tabz',
   );
@@ -74,6 +75,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1055991376090',
     projectId: 'tabz-expense-splitter',
     storageBucket: 'tabz-expense-splitter.firebasestorage.app',
+    androidClientId: '1055991376090-5nun3np3vvtjl1dal3ap7p9logf4v5sl.apps.googleusercontent.com',
     iosClientId: '1055991376090-6is0rm841869ggrfspp36aqvcddtm4c5.apps.googleusercontent.com',
     iosBundleId: 'com.example.tabz',
   );

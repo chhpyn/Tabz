@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
@@ -21,8 +19,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _usernameController;
   bool _isSaving = false;
-  File? _selectedImage;
-  final ImagePicker _imagePicker = ImagePicker();
+  String? _selectedAvatar;
+
+  final List<String> _availableAvatars = List.generate(
+    12,
+    (index) => 'lib/assets/avatars/${index + 1}.png',
+  );
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _usernameController = TextEditingController(
       text: user?.username.replaceAll('@', '') ?? '',
     );
+    _selectedAvatar = user?.profileImageUrl;
   }
 
   @override
@@ -41,71 +44,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    try {
-      // Request gallery permission
-      final status = await Permission.photos.request();
-      
-      if (status.isDenied) {
-        if (mounted) {
-          TopBanner.show(
-            context,
-            'Gallery permission is required to upload photos',
-          );
-        }
-        return;
-      }
-      
-      if (status.isPermanentlyDenied) {
-        if (mounted) {
-          TopBanner.show(
-            context,
-            'Gallery permission is permanently denied. Please enable it in settings.',
-            actionLabel: 'Open Settings',
-            onActionPressed: openAppSettings,
-          );
-        }
-        return;
-      }
-      
-      final pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-      
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        TopBanner.show(context, 'Failed to pick image');
-      }
-    }
-  }
-
-  Future<void> _removeImage() async {
-    setState(() {
-      _selectedImage = null;
-    });
-  }
-
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isSaving = true);
-    
+
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.updateProfile(
       _nameController.text.trim(),
       _usernameController.text.trim(),
-      imagePath: _selectedImage?.path,
+      imagePath: _selectedAvatar,
     );
-    
+
     if (!mounted) return;
     setState(() => _isSaving = false);
-    
+
     if (success) {
       TopBanner.show(
         context,
@@ -149,212 +102,276 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: MemberAvatar.getConsistentAvatarColor(user.id),
-                          shape: BoxShape.circle,
-                          image: _selectedImage != null
-                              ? DecorationImage(
-                                  image: FileImage(_selectedImage!),
-                                  fit: BoxFit.cover,
-                                )
-                              : user.profileImageUrl != null
-                                  ? DecorationImage(
-                                      image: user.profileImageUrl!.startsWith('http')
-                                          ? NetworkImage(user.profileImageUrl!) as ImageProvider
-                                          : FileImage(File(user.profileImageUrl!)),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                        ),
-                        child: (_selectedImage == null && user.profileImageUrl == null)
-                            ? Center(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: MemberAvatar.getConsistentAvatarColor(user.id),
+                        shape: BoxShape.circle,
+                        image: _selectedAvatar != null
+                            ? DecorationImage(
+                                image: _selectedAvatar!.startsWith('http')
+                                    ? NetworkImage(_selectedAvatar!)
+                                          as ImageProvider
+                                    : _selectedAvatar!.startsWith('lib/assets/')
+                                    ? AssetImage(_selectedAvatar!)
+                                          as ImageProvider
+                                    : FileImage(File(_selectedAvatar!)),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: _selectedAvatar == null
+                          ? Center(
+                              child: Text(
+                                user.initials,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Choose Avatar',
+                    style: GoogleFonts.inter(
+                      color: theme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 70,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount:
+                          _availableAvatars.length +
+                          1, // +1 for "Initials" option
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          // "Use Initials" option
+                          final isSelected = _selectedAvatar == null;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedAvatar = null),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: MemberAvatar.getConsistentAvatarColor(
+                                  user.id,
+                                ),
+                                shape: BoxShape.circle,
+                                border: isSelected
+                                    ? Border.all(
+                                        color: AppColors.success,
+                                        width: 3,
+                                      )
+                                    : null,
+                              ),
+                              child: Center(
                                 child: Text(
                                   user.initials,
                                   style: GoogleFonts.inter(
                                     color: Colors.white,
-                                    fontSize: 36,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              )
-                            : null,
-                      ),
-                      GestureDetector(
-                        onTap: _pickImage,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
+                              ),
+                            ),
+                          );
+                        }
+
+                        final avatarPath = _availableAvatars[index - 1];
+                        final isSelected = _selectedAvatar == avatarPath;
+
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedAvatar = avatarPath),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 12),
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: isSelected
+                                  ? Border.all(
+                                      color: AppColors.success,
+                                      width: 3,
+                                    )
+                                  : null,
+                              image: DecorationImage(
+                                image: AssetImage(avatarPath),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.camera_alt_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  Text(
+                    'Full Name',
+                    style: GoogleFonts.inter(
+                      color: theme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _nameController,
+                    style: TextStyle(color: theme.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'John Doe',
+                      hintStyle: GoogleFonts.inter(
+                        color: theme.textMuted,
+                        fontSize: 14,
                       ),
-                    ],
-                  ),
-                ),
-                if (_selectedImage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _removeImage,
-                        child: Text(
-                          'Remove photo',
-                          style: GoogleFonts.inter(
-                            color: Colors.red,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      filled: true,
+                      fillColor: theme.card,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
                       ),
-                    ),
-                  ),
-                const SizedBox(height: 40),
-                Text(
-                  'Full Name',
-                  style: GoogleFonts.inter(
-                    color: theme.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _nameController,
-                  style: TextStyle(color: theme.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'John Doe',
-                    hintStyle: GoogleFonts.inter(color: theme.textMuted, fontSize: 14),
-                    filled: true,
-                    fillColor: theme.card,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: theme.cardBorder),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: theme.cardBorder),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Username',
-                  style: GoogleFonts.inter(
-                    color: theme.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _usernameController,
-                  style: TextStyle(color: theme.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'username',
-                    hintStyle: GoogleFonts.inter(color: theme.textMuted, fontSize: 14),
-                    prefixIcon: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        '@',
-                        style: GoogleFonts.inter(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: theme.cardBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: theme.cardBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
                           color: AppColors.primary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          width: 1.5,
                         ),
                       ),
                     ),
-                    prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                    filled: true,
-                    fillColor: theme.card,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: theme.cardBorder),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: theme.cardBorder),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Username',
+                    style: GoogleFonts.inter(
+                      color: theme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a username';
-                    }
-                    if (value.contains(' ')) {
-                      return 'Username cannot contain spaces';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 48),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _saveProfile,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(32),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _usernameController,
+                    style: TextStyle(color: theme.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'username',
+                      hintStyle: GoogleFonts.inter(
+                        color: theme.textMuted,
+                        fontSize: 14,
+                      ),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          '@',
+                          style: GoogleFonts.inter(
+                            color: AppColors.primary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 0,
+                        minHeight: 0,
+                      ),
+                      filled: true,
+                      fillColor: theme.card,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: theme.cardBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: theme.cardBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primary,
+                          width: 1.5,
+                        ),
                       ),
                     ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
-                          )
-                        : Text(
-                            'Save Changes',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a username';
+                      }
+                      if (value.contains(' ')) {
+                        return 'Username cannot contain spaces';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-              ],
+                  const SizedBox(height: 48),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _isSaving ? null : _saveProfile,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(32),
+                        ),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Text(
+                              'Save Changes',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

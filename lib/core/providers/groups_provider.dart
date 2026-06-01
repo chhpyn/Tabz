@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
@@ -5,10 +6,23 @@ import '../models/group_model.dart';
 
 class GroupsProvider with ChangeNotifier {
   String _currentUserId = '';
-  List<GroupModel> _groups = [];
+  List<GroupModel> _activeGroupsList = [];
+  List<GroupModel> _pendingGroupsList = [];
   final Map<String, UserModel> _userCache = {};
   bool _isLoading = false;
-  int _loadVersion = 0;
+
+  StreamSubscription? _activeGroupsSub;
+  StreamSubscription? _pendingGroupsSub;
+  final Map<String, StreamSubscription> _userSubs = {};
+
+  List<GroupModel> get _groups {
+    final all = [..._activeGroupsList, ..._pendingGroupsList];
+    final map = <String, GroupModel>{};
+    for (var g in all) map[g.id] = g;
+    final list = map.values.toList();
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
 
   List<GroupModel> get activeGroups => 
       _groups.where((g) => g.memberIds.contains(_currentUserId)).toList();
@@ -23,86 +37,99 @@ class GroupsProvider with ChangeNotifier {
   void setCurrentUser(String userId) {
     if (_currentUserId != userId) {
       _currentUserId = userId;
-      notifyListeners();
+      _listenToGroups();
     }
+  }
+
+  void _listenToGroups() {
+    _cancelAllSubs();
+    
+    if (_currentUserId.isEmpty) {
+      clearData();
+      return;
+    }
+
+    _isLoading = true;
+    notifyListeners();
+
+    _activeGroupsSub = FirebaseFirestore.instance
+        .collection('groups')
+        .where('memberIds', arrayContains: _currentUserId)
+        .snapshots()
+        .listen((snapshot) {
+      _activeGroupsList = snapshot.docs.map((e) => GroupModel.fromMap(e.data(), e.id)).toList();
+      _updateUserSubscriptions();
+      _isLoading = false;
+      notifyListeners();
+    });
+
+    _pendingGroupsSub = FirebaseFirestore.instance
+        .collection('groups')
+        .where('pendingMemberIds', arrayContains: _currentUserId)
+        .snapshots()
+        .listen((snapshot) {
+      _pendingGroupsList = snapshot.docs.map((e) => GroupModel.fromMap(e.data(), e.id)).toList();
+      _updateUserSubscriptions();
+      notifyListeners();
+    });
+  }
+
+  void _updateUserSubscriptions() {
+    final uniqueMemberIds = <String>{};
+    for (final group in _groups) {
+      uniqueMemberIds.addAll(group.memberIds);
+      uniqueMemberIds.addAll(group.pendingMemberIds);
+    }
+
+    // Remove subscriptions for users no longer in any group
+    final removedIds = _userSubs.keys.where((id) => !uniqueMemberIds.contains(id)).toList();
+    for (final id in removedIds) {
+      _userSubs[id]?.cancel();
+      _userSubs.remove(id);
+      _userCache.remove(id);
+    }
+
+    // Add subscriptions for new users
+    final newIds = uniqueMemberIds.where((id) => !_userSubs.containsKey(id)).toList();
+    for (final id in newIds) {
+      _userSubs[id] = FirebaseFirestore.instance
+          .collection('users')
+          .doc(id)
+          .snapshots()
+          .listen((userDoc) {
+        if (userDoc.exists && userDoc.data() != null) {
+          _userCache[id] = UserModel.fromMap(userDoc.data()!);
+          notifyListeners();
+        }
+      });
+    }
+  }
+
+  void _cancelAllSubs() {
+    _activeGroupsSub?.cancel();
+    _activeGroupsSub = null;
+    _pendingGroupsSub?.cancel();
+    _pendingGroupsSub = null;
+    for (final sub in _userSubs.values) {
+      sub.cancel();
+    }
+    _userSubs.clear();
   }
 
   void clearData() {
     _currentUserId = '';
-    _groups = [];
+    _activeGroupsList = [];
+    _pendingGroupsList = [];
     _userCache.clear();
     _isLoading = false;
+    _cancelAllSubs();
     notifyListeners();
   }
 
+  // Backwards compatibility for explicit refreshes
   Future<void> loadGroups() async {
-    if (_currentUserId.isEmpty) return;
-
-    final loadVersion = ++_loadVersion;
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final activeSnapshot = await FirebaseFirestore.instance
-          .collection('groups')
-          .where('memberIds', arrayContains: _currentUserId)
-          .get();
-
-      final pendingSnapshot = await FirebaseFirestore.instance
-          .collection('groups')
-          .where('pendingMemberIds', arrayContains: _currentUserId)
-          .get();
-
-      final allDocs = <String, Map<String, dynamic>>{};
-      for (final doc in activeSnapshot.docs) allDocs[doc.id] = doc.data();
-      for (final doc in pendingSnapshot.docs) allDocs[doc.id] = doc.data();
-
-      final loadedGroups = allDocs.entries
-          .map((e) => GroupModel.fromMap(e.value, e.key))
-          .toList();
-      loadedGroups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-      // Collect all unique member IDs across all groups
-      final uniqueMemberIds = <String>{};
-      for (final group in loadedGroups) {
-        uniqueMemberIds.addAll(group.memberIds);
-        uniqueMemberIds.addAll(group.pendingMemberIds);
-      }
-
-      // Fetch users that are not already in the cache
-      final idsToFetch = uniqueMemberIds.where((id) => !_userCache.containsKey(id)).toList();
-
-      if (idsToFetch.isNotEmpty) {
-        final futures = idsToFetch.map((id) {
-          return FirebaseFirestore.instance.collection('users').doc(id).get().catchError((e) {
-            debugPrint('Error fetching user $id: $e');
-            throw e;
-          });
-        });
-
-        try {
-          final userSnapshots = await Future.wait(futures);
-          for (final userSnap in userSnapshots) {
-            if (userSnap.exists && userSnap.data() != null) {
-              final user = UserModel.fromMap(userSnap.data()!);
-              _userCache[user.id] = user;
-            }
-          }
-        } catch (e) {
-          debugPrint('Error in Future.wait for users: $e');
-        }
-      }
-
-      if (loadVersion != _loadVersion) return;
-
-      _groups = loadedGroups;
-    } catch (e) {
-      debugPrint('Error loading groups: $e');
-    } finally {
-      if (loadVersion == _loadVersion) {
-        _isLoading = false;
-        notifyListeners();
-      }
+    if (_currentUserId.isNotEmpty && _activeGroupsSub == null) {
+      _listenToGroups();
     }
   }
 
@@ -210,9 +237,7 @@ class GroupsProvider with ChangeNotifier {
       }
 
       await batch.commit();
-      _groups = [newGroup, ..._groups];
-      notifyListeners();
-      await loadGroups();
+      // Listeners will automatically update _groups
     } catch (e) {
       debugPrint('Error creating group: $e');
     }
@@ -225,7 +250,6 @@ class GroupsProvider with ChangeNotifier {
         'pendingMemberIds': FieldValue.arrayRemove([_currentUserId]),
         'memberIds': FieldValue.arrayUnion([_currentUserId]),
       });
-      await loadGroups();
     } catch (e) {
       debugPrint('Error accepting invite: $e');
     }
@@ -237,7 +261,6 @@ class GroupsProvider with ChangeNotifier {
       await FirebaseFirestore.instance.collection('groups').doc(groupId).update({
         'pendingMemberIds': FieldValue.arrayRemove([_currentUserId]),
       });
-      await loadGroups();
     } catch (e) {
       debugPrint('Error declining invite: $e');
     }
@@ -258,9 +281,14 @@ class GroupsProvider with ChangeNotifier {
         'memberIds': memberIds,
         'pendingMemberIds': pendingMemberIds,
       });
-      await loadGroups();
     } catch (e) {
       debugPrint('Error updating group: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    _cancelAllSubs();
+    super.dispose();
   }
 }

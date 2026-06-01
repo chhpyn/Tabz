@@ -41,9 +41,13 @@ class ExpenseCard extends StatelessWidget {
     String receiverNameStr = '';
 
     if (expense.splitType == SplitType.payment) {
-      final receiverId = expense.splits.isNotEmpty ? expense.splits.first.userId : '';
+      final receiverId = expense.splits.isNotEmpty
+          ? expense.splits.first.userId
+          : '';
       final receiver = groupsProvider.getUserById(receiverId);
-      receiverNameStr = receiver?.id == currentUserId ? 'you' : (receiver?.firstName ?? 'someone');
+      receiverNameStr = receiver?.id == currentUserId
+          ? 'you'
+          : (receiver?.firstName ?? 'someone');
       titleText = 'Bill Settlement';
     }
 
@@ -69,7 +73,7 @@ class ExpenseCard extends StatelessWidget {
                   Text(
                     group!.name,
                     style: GoogleFonts.inter(
-                      color: AppColors.primary,
+                      color: theme.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.3,
@@ -161,7 +165,9 @@ class ExpenseCard extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.textSecondary.withValues(alpha: 0.15),
+                                color: theme.textSecondary.withValues(
+                                  alpha: 0.15,
+                                ),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(

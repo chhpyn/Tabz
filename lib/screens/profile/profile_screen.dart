@@ -24,14 +24,14 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = AppDynColors.of(context);
     final auth = context.watch<AuthProvider>();
-    
+
     if (auth.currentUser == null) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     final themeProvider = context.watch<ThemeProvider>();
     final user = auth.currentUser!;
     final isDark = themeProvider.isDark;
@@ -71,36 +71,7 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: MemberAvatar.getConsistentAvatarColor(user.id),
-                          shape: BoxShape.circle,
-                          image: user.profileImageUrl != null
-                              ? DecorationImage(
-                                  image:
-                                      user.profileImageUrl!.startsWith('http')
-                                      ? NetworkImage(user.profileImageUrl!)
-                                            as ImageProvider
-                                      : FileImage(File(user.profileImageUrl!)),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        child: user.profileImageUrl == null
-                            ? Center(
-                                child: Text(
-                                  user.initials,
-                                  style: GoogleFonts.inter(
-                                    color: Colors.white,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              )
-                            : null,
-                      ),
+                      MemberAvatar(user: user, radius: 32),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -310,8 +281,9 @@ class ProfileScreen extends StatelessWidget {
                     inactiveTrackColor: AppColors.warning.withValues(
                       alpha: 0.3,
                     ),
-                    trackOutlineColor:
-                        WidgetStateProperty.all(Colors.transparent),
+                    trackOutlineColor: WidgetStateProperty.all(
+                      Colors.transparent,
+                    ),
                   ),
                 ],
               ),
@@ -427,14 +399,14 @@ class ProfileScreen extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              
+
               if (context.mounted) {
                 context.read<FriendsProvider>().clearData();
                 context.read<GroupsProvider>().clearData();
                 context.read<ExpenseProvider>().clearData();
                 context.read<NotificationProvider>().clearAll();
               }
-              
+
               await auth.signOut();
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
@@ -509,10 +481,16 @@ class _SettingsItem extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: (iconColor ?? theme.textSecondary).withValues(alpha: 0.12),
+                color: (iconColor ?? theme.textSecondary).withValues(
+                  alpha: 0.12,
+                ),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: iconColor ?? theme.textSecondary, size: 20),
+              child: Icon(
+                icon,
+                color: iconColor ?? theme.textSecondary,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -529,7 +507,10 @@ class _SettingsItem extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(color: theme.textMuted, fontSize: 12),
+                    style: GoogleFonts.inter(
+                      color: theme.textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
