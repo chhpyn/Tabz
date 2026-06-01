@@ -90,6 +90,14 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
 
+    int receiveFlex = 1;
+    int transferFlex = 1;
+    if (toReceive > 0 || toTransfer > 0) {
+      final total = toReceive + toTransfer;
+      receiveFlex = 50 + ((toReceive / total) * 50).toInt();
+      transferFlex = 50 + ((toTransfer / total) * 50).toInt();
+    }
+
     final allExpenses = List.of(expenseProvider.expenses)
       ..sort((a, b) => b.date.compareTo(a.date));
     final recentExpenses = allExpenses.take(3).toList();
@@ -137,35 +145,9 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Row(
                     children: [
                       // Avatar circle
-                      Container(
-                        width: 54,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          color: MemberAvatar.getConsistentAvatarColor(user.id),
-                          shape: BoxShape.circle,
-                          image: user.profileImageUrl != null
-                              ? DecorationImage(
-                                  image:
-                                      user.profileImageUrl!.startsWith('http')
-                                      ? NetworkImage(user.profileImageUrl!)
-                                            as ImageProvider
-                                      : FileImage(File(user.profileImageUrl!)),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        child: user.profileImageUrl == null
-                            ? Center(
-                                child: Text(
-                                  user.initials,
-                                  style: GoogleFonts.inter(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              )
-                            : null,
+                      MemberAvatar(
+                        user: user,
+                        radius: 27,
                       ),
                       const SizedBox(width: 12),
                       // Greeting + name
@@ -258,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Row(
                     children: [
                       Expanded(
+                        flex: receiveFlex,
                         child: _StatChip(
                           label: 'To receive',
                           value: currencyFmt.format(toReceive),
@@ -268,6 +251,7 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                       const SizedBox(width: 12),
                       Expanded(
+                        flex: transferFlex,
                         child: _StatChip(
                           label: 'To transfer',
                           value: currencyFmt.format(toTransfer),

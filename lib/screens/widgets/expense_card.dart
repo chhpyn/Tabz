@@ -51,15 +51,36 @@ class ExpenseCard extends StatelessWidget {
       titleText = 'Bill Settlement';
     }
 
+    Color accentColor;
+    switch (expense.splitType) {
+      case SplitType.equal:
+        accentColor = AppColors.primary;
+        break;
+      case SplitType.itemized:
+        accentColor = AppColors.accent;
+        break;
+      case SplitType.custom:
+        accentColor = AppColors.warning;
+        break;
+      default:
+        accentColor = AppColors.success;
+        break;
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.card,
+          color: accentColor.withValues(alpha: isDark ? 0.08 : 0.05),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.cardBorder),
+          border: Border.all(
+            color: accentColor.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
