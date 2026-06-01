@@ -177,6 +177,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   void _syncAmountFromItems() {
     if (_splitType == SplitType.itemized || _autoSyncAmountFromItems) {
+      if (_itemsTotal == 0) return;
       _amountController.text = _itemizedCalculatedTotal.toStringAsFixed(2);
     }
   }
@@ -486,446 +487,453 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final theme = AppDynColors.of(context);
     final currencyFmt = NumberFormat.currency(symbol: 'RM ', decimalDigits: 2);
 
-    return Scaffold(
-      backgroundColor: theme.background,
-      appBar: AppBar(
-        title: Text(
-          widget.existingExpense != null ? 'Edit Expense' : 'Add Expense',
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
         backgroundColor: theme.background,
-      ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-                children: [
-                  // Title
-                  TextFormField(
-                    controller: _titleController,
-                    style: TextStyle(color: theme.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'What was this expense?',
-                      prefixIcon: Icon(Icons.receipt_outlined),
+        appBar: AppBar(
+          title: Text(
+            widget.existingExpense != null ? 'Edit Expense' : 'Add Expense',
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          backgroundColor: theme.background,
+        ),
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+                  children: [
+                    // Title
+                    TextFormField(
+                      controller: _titleController,
+                      style: TextStyle(color: theme.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'What was this expense?',
+                        prefixIcon: Icon(Icons.receipt_outlined),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                      validator: (v) => v != null && v.trim().isNotEmpty
+                          ? null
+                          : 'Enter a title',
                     ),
-                    onChanged: (_) => setState(() {}),
-                    validator: (v) => v != null && v.trim().isNotEmpty
-                        ? null
-                        : 'Enter a title',
-                  ),
-                  const SizedBox(height: 14),
-                  // Scan Receipt
-                  _buildScanReceipt(theme),
-                  const SizedBox(height: 24),
-                  // Split Type
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: theme.cardBorder),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<SplitType>(
-                        value: _splitType,
-                        isExpanded: true,
-                        dropdownColor: theme.card,
-                        icon: const Icon(
-                          Icons.expand_more_rounded,
-                          color: AppColors.primary,
+                    const SizedBox(height: 14),
+                    // Scan Receipt
+                    _buildScanReceipt(theme),
+                    const SizedBox(height: 24),
+                    // Split Type
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.card,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: theme.cardBorder),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<SplitType>(
+                          value: _splitType,
+                          isExpanded: true,
+                          dropdownColor: theme.card,
+                          icon: const Icon(
+                            Icons.expand_more_rounded,
+                            color: AppColors.primary,
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: SplitType.equal,
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.pie_chart_rounded,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Equal Split',
+                                    style: GoogleFonts.inter(
+                                      color: theme.textPrimary,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: SplitType.itemized,
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.receipt_long_rounded,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Itemized Split',
+                                    style: GoogleFonts.inter(
+                                      color: theme.textPrimary,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: SplitType.custom,
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.tune_rounded,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Custom Split',
+                                    style: GoogleFonts.inter(
+                                      color: theme.textPrimary,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _splitType = val;
+                                _syncAmountFromItems();
+                              });
+                            }
+                          },
                         ),
-                        items: [
-                          DropdownMenuItem(
-                            value: SplitType.equal,
-                            child: Row(
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Amount & Paid By
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: theme.card,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: theme.cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          // Amount input
+                          Expanded(
+                            flex: 2,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(
-                                  Icons.pie_chart_rounded,
-                                  color: AppColors.primary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
                                 Text(
-                                  'Equal Split',
+                                  'Amount',
                                   style: GoogleFonts.inter(
-                                    color: theme.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                                    color: theme.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
                                   ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Text(
+                                      'RM ',
+                                      style: GoogleFonts.inter(
+                                        color: theme.textSecondary,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _amountController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'[0-9.]'),
+                                          ),
+                                        ],
+                                        readOnly:
+                                            _splitType == SplitType.itemized,
+                                        style: TextStyle(
+                                          color: theme.textPrimary,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        decoration: InputDecoration(
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 10,
+                                              ),
+                                          hintText: '0.00',
+                                          hintStyle: TextStyle(
+                                            color: theme.textSecondary,
+                                          ),
+                                        ),
+                                        validator: (v) {
+                                          final val = double.tryParse(v ?? '');
+                                          if (_splitType ==
+                                              SplitType.itemized) {
+                                            return null;
+                                          }
+                                          return val != null && val > 0
+                                              ? null
+                                              : 'Enter a valid amount';
+                                        },
+                                        onChanged: (_) => setState(() {}),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-                          DropdownMenuItem(
-                            value: SplitType.itemized,
-                            child: Row(
+                          Container(
+                            width: 1,
+                            height: 50,
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            color: theme.cardBorder,
+                          ),
+                          // Paid by selector
+                          Expanded(
+                            flex: 2,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.receipt_long_rounded,
-                                  color: AppColors.primary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
                                 Text(
-                                  'Itemized Split',
+                                  'Paid by',
                                   style: GoogleFonts.inter(
-                                    color: theme.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                                    color: theme.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: SplitType.custom,
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.tune_rounded,
-                                  color: AppColors.primary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Custom Split',
-                                  style: GoogleFonts.inter(
-                                    color: theme.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      builder: (ctx) => Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: theme.background,
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                top: Radius.circular(24),
+                                              ),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Center(
+                                              child: Container(
+                                                width: 40,
+                                                height: 4,
+                                                decoration: BoxDecoration(
+                                                  color: theme.cardBorder,
+                                                  borderRadius:
+                                                      BorderRadius.circular(2),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 20),
+                                            Text(
+                                              'Select Payer',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: theme.textPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            ...widget.members.map((member) {
+                                              final selected =
+                                                  member.id == _selectedPayerId;
+                                              return Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                child: GestureDetector(
+                                                  onTap: () {
+                                                    setState(
+                                                      () => _selectedPayerId =
+                                                          member.id,
+                                                    );
+                                                    Navigator.pop(ctx);
+                                                  },
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          12,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: selected
+                                                          ? AppColors.primary
+                                                                .withValues(
+                                                                  alpha: 0.15,
+                                                                )
+                                                          : Colors.transparent,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: selected
+                                                            ? AppColors.primary
+                                                            : theme.cardBorder,
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        MemberAvatar(
+                                                          user: member,
+                                                          radius: 14,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 12,
+                                                        ),
+                                                        Expanded(
+                                                          child: Text(
+                                                            member.name,
+                                                            style: GoogleFonts.inter(
+                                                              color: theme
+                                                                  .textPrimary,
+                                                              fontWeight:
+                                                                  selected
+                                                                  ? FontWeight
+                                                                        .w700
+                                                                  : FontWeight
+                                                                        .w500,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        if (selected)
+                                                          Icon(
+                                                            Icons
+                                                                .check_circle_rounded,
+                                                            color: AppColors
+                                                                .primary,
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        ...widget.members
+                                            .where(
+                                              (m) => m.id == _selectedPayerId,
+                                            )
+                                            .map(
+                                              (member) => [
+                                                MemberAvatar(
+                                                  user: member,
+                                                  radius: 12,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    member.firstName,
+                                                    style: GoogleFonts.inter(
+                                                      color: AppColors.primary,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                            .expand((e) => e),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.expand_more_rounded,
+                                          color: AppColors.primary,
+                                          size: 18,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _splitType = val;
-                              _syncAmountFromItems();
-                            });
-                          }
-                        },
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Amount & Paid By
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: theme.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: theme.cardBorder),
-                    ),
-                    child: Row(
-                      children: [
-                        // Amount input
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Amount',
-                                style: GoogleFonts.inter(
-                                  color: theme.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Text(
-                                    'RM ',
-                                    style: GoogleFonts.inter(
-                                      color: theme.textSecondary,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _amountController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(
-                                          RegExp(r'[0-9.]'),
-                                        ),
-                                      ],
-                                      readOnly:
-                                          _splitType == SplitType.itemized,
-                                      style: TextStyle(
-                                        color: theme.textPrimary,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      decoration: InputDecoration(
-                                        isDense: true,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              vertical: 10,
-                                            ),
-                                        hintText: '0.00',
-                                        hintStyle: TextStyle(
-                                          color: theme.textSecondary,
-                                        ),
-                                      ),
-                                      validator: (v) {
-                                        final val = double.tryParse(v ?? '');
-                                        if (_splitType == SplitType.itemized) {
-                                          return null;
-                                        }
-                                        return val != null && val > 0
-                                            ? null
-                                            : 'Enter a valid amount';
-                                      },
-                                      onChanged: (_) => setState(() {}),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          width: 1,
-                          height: 50,
-                          margin: const EdgeInsets.symmetric(horizontal: 12),
-                          color: theme.cardBorder,
-                        ),
-                        // Paid by selector
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Paid by',
-                                style: GoogleFonts.inter(
-                                  color: theme.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              GestureDetector(
-                                onTap: () {
-                                  showModalBottomSheet(
-                                    context: context,
-                                    builder: (ctx) => Container(
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: theme.background,
-                                        borderRadius:
-                                            const BorderRadius.vertical(
-                                              top: Radius.circular(24),
-                                            ),
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Center(
-                                            child: Container(
-                                              width: 40,
-                                              height: 4,
-                                              decoration: BoxDecoration(
-                                                color: theme.cardBorder,
-                                                borderRadius:
-                                                    BorderRadius.circular(2),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 20),
-                                          Text(
-                                            'Select Payer',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                              color: theme.textPrimary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          ...widget.members.map((member) {
-                                            final selected =
-                                                member.id == _selectedPayerId;
-                                            return Padding(
-                                              padding: const EdgeInsets.only(
-                                                bottom: 8,
-                                              ),
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  setState(
-                                                    () => _selectedPayerId =
-                                                        member.id,
-                                                  );
-                                                  Navigator.pop(ctx);
-                                                },
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(
-                                                    12,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: selected
-                                                        ? AppColors.primary
-                                                              .withValues(
-                                                                alpha: 0.15,
-                                                              )
-                                                        : Colors.transparent,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                    border: Border.all(
-                                                      color: selected
-                                                          ? AppColors.primary
-                                                          : theme.cardBorder,
-                                                    ),
-                                                  ),
-                                                  child: Row(
-                                                    children: [
-                                                      MemberAvatar(
-                                                        user: member,
-                                                        radius: 14,
-                                                      ),
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: Text(
-                                                          member.name,
-                                                          style:
-                                                              GoogleFonts.inter(
-                                                                color: theme
-                                                                    .textPrimary,
-                                                                fontWeight:
-                                                                    selected
-                                                                    ? FontWeight
-                                                                          .w700
-                                                                    : FontWeight
-                                                                          .w500,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      if (selected)
-                                                        Icon(
-                                                          Icons
-                                                              .check_circle_rounded,
-                                                          color:
-                                                              AppColors.primary,
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          }).toList(),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(
-                                      alpha: 0.08,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      ...widget.members
-                                          .where(
-                                            (m) => m.id == _selectedPayerId,
-                                          )
-                                          .map(
-                                            (member) => [
-                                              MemberAvatar(
-                                                user: member,
-                                                radius: 12,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  member.firstName,
-                                                  style: GoogleFonts.inter(
-                                                    color: AppColors.primary,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                          .expand((e) => e),
-                                      const SizedBox(width: 4),
-                                      Icon(
-                                        Icons.expand_more_rounded,
-                                        color: AppColors.primary,
-                                        size: 18,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Tab Content
-                  _buildTabContent(theme, currencyFmt),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-          child: SizedBox(
-            height: 52,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.contrast,
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: ElevatedButton(
-                onPressed: _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(32),
-                  ),
+                    const SizedBox(height: 24),
+                    // Tab Content
+                    _buildTabContent(theme, currencyFmt),
+                  ],
                 ),
-                child: Text(
-                  widget.existingExpense != null
-                      ? 'Update Expense'
-                      : 'Save Expense',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: SizedBox(
+              height: 52,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.contrast,
+                  borderRadius: BorderRadius.circular(32),
+                ),
+                child: ElevatedButton(
+                  onPressed: _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                  ),
+                  child: Text(
+                    widget.existingExpense != null
+                        ? 'Update Expense'
+                        : 'Save Expense',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -1051,6 +1059,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           SizedBox(
             width: 96,
             child: TextFormField(
+              cursorColor: AppColors.success,
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
@@ -1133,9 +1142,35 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ),
           ),
           Spacer(),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isDiscountPercentage = !_isDiscountPercentage;
+                _syncAmountFromItems();
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.cardElevated,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.cardBorder),
+              ),
+              child: Text(
+                _isDiscountPercentage ? 'Change to RM' : 'Change to %',
+                style: GoogleFonts.inter(
+                  color: AppColors.warning,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           SizedBox(
             width: 96,
             child: TextFormField(
+              cursorColor: AppColors.warning,
               controller: _discountController,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
@@ -1637,6 +1672,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       color: theme.textPrimary,
                       fontWeight: FontWeight.bold,
                     ),
+                    cursorColor: AppColors.success,
                     decoration: InputDecoration(
                       isDense: true,
                       filled: true,
@@ -1661,7 +1697,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
-                          color: AppColors.primary,
+                          color: AppColors.success,
                           width: 1.5,
                         ),
                       ),

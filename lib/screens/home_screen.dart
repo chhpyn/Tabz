@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'dart:io';
 import 'package:intl/intl.dart';
 import '../../core/models/group_model.dart';
 import '../../core/models/user_model.dart';
@@ -145,10 +144,7 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Row(
                     children: [
                       // Avatar circle
-                      MemberAvatar(
-                        user: user,
-                        radius: 27,
-                      ),
+                      MemberAvatar(user: user, radius: 27),
                       const SizedBox(width: 12),
                       // Greeting + name
                       Expanded(

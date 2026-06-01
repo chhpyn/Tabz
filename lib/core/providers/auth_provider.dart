@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 import '../models/user_model.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -12,7 +10,7 @@ class AuthProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   bool _isInitialized = false;
-  
+
   // Store temporary Google user data for new users
   String? _tempGoogleName;
   String? _tempGoogleEmail;
@@ -24,13 +22,13 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isInitialized => _isInitialized;
-  
+
   // Getters for temporary Google data
   String? get tempGoogleName => _tempGoogleName;
   String? get tempGoogleEmail => _tempGoogleEmail;
   String? get tempGooglePhotoUrl => _tempGooglePhotoUrl;
   String? get tempGoogleUid => _tempGoogleUid;
-  
+
   bool get hasGooglePendingSignUp => _tempGoogleUid != null;
 
   /// Initialize authentication state (checks for existing Firebase session)
@@ -40,7 +38,7 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
 
       final currentFirebaseUser = FirebaseAuth.instance.currentUser;
-      
+
       if (currentFirebaseUser != null) {
         // User has an existing Firebase session, fetch their profile from Firestore
         final doc = await FirebaseFirestore.instance
@@ -230,8 +228,9 @@ class AuthProvider with ChangeNotifier {
         idToken: googleAuth.idToken,
       );
 
-      final userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
 
       // Check if user exists in Firestore
       final doc = await FirebaseFirestore.instance
@@ -251,10 +250,10 @@ class AuthProvider with ChangeNotifier {
         _tempGoogleEmail = googleUser.email;
         _tempGooglePhotoUrl = googleUser.photoUrl;
         _tempGoogleUid = userCredential.user!.uid;
-        
+
         // Sign out from Firebase to allow re-authentication during sign-up
         await FirebaseAuth.instance.signOut();
-        
+
         _errorMessage = 'Account not found. Please sign up first.';
         _isLoading = false;
         notifyListeners();
@@ -320,13 +319,13 @@ class AuthProvider with ChangeNotifier {
 
       _currentUser = newUser;
       _isAuthenticated = true;
-      
+
       // Clear temporary Google data
       _tempGoogleName = null;
       _tempGoogleEmail = null;
       _tempGooglePhotoUrl = null;
       _tempGoogleUid = null;
-      
+
       _isLoading = false;
       notifyListeners();
       return true;
