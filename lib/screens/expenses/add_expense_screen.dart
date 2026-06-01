@@ -39,8 +39,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   // Itemized
   List<_ItemRow> _itemRows = [];
-  final _taxAndFeesController = TextEditingController();
+  final _taxPercentageController = TextEditingController();
+  final _serviceChargePercentageController = TextEditingController();
+  final _discountController = TextEditingController();
+  bool _isDiscountPercentage = false;
   bool _isOcrLoading = false;
+  bool _autoSyncAmountFromItems = false;
 
   // Custom
   final Map<String, TextEditingController> _customControllers = {};
@@ -91,12 +95,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         0.0,
         (sum, i) => sum + i.price,
       );
-      if (widget.existingExpense!.amount > totalItemsPrice) {
-        _taxAndFeesController.text =
-            (widget.existingExpense!.amount - totalItemsPrice).toStringAsFixed(
-              2,
-            );
+      if (widget.existingExpense!.amount > totalItemsPrice &&
+          totalItemsPrice > 0) {
+        _taxPercentageController.text =
+            (((widget.existingExpense!.amount - totalItemsPrice) /
+                        totalItemsPrice) *
+                    100)
+                .toStringAsFixed(2);
       }
+
+      _syncAmountFromItems();
     }
 
     if (_itemRows.isEmpty) {
@@ -108,7 +116,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   void dispose() {
     _titleController.dispose();
     _amountController.dispose();
-    _taxAndFeesController.dispose();
+    _taxPercentageController.dispose();
+    _serviceChargePercentageController.dispose();
+    _discountController.dispose();
     for (final theme in _customControllers.values) {
       theme.dispose();
     }
@@ -125,8 +135,38 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     (sum, r) => sum + (double.tryParse(r.priceCtrl.text) ?? 0),
   );
 
-  double get _taxAndFeesAmount =>
-      double.tryParse(_taxAndFeesController.text) ?? 0;
+  double _percentageValue(TextEditingController controller) {
+    return double.tryParse(controller.text) ?? 0;
+  }
+
+  double get _taxPercentage => _percentageValue(_taxPercentageController);
+
+  double get _serviceChargePercentage =>
+      _percentageValue(_serviceChargePercentageController);
+
+  double get _discountInputAmount =>
+      double.tryParse(_discountController.text) ?? 0;
+
+  double get _discountAmount {
+    if (_discountInputAmount <= 0) return 0.0;
+    if (_isDiscountPercentage) {
+      return _itemsTotal * _discountInputAmount / 100;
+    }
+    return _discountInputAmount;
+  }
+
+  double get _discountedItemsTotal => _itemsTotal - _discountAmount;
+
+  double get _taxAmount => _discountedItemsTotal * _taxPercentage / 100;
+
+  double get _serviceChargeAmount =>
+      _discountedItemsTotal * _serviceChargePercentage / 100;
+
+  double get _itemizedTaxAndServiceChargeTotal =>
+      _taxAmount + _serviceChargeAmount;
+
+  double get _itemizedCalculatedTotal =>
+      _discountedItemsTotal + _itemizedTaxAndServiceChargeTotal;
 
   double get _customTotal {
     return _customControllers.values.fold(
@@ -135,9 +175,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  void _syncAmountFromItems() {
+    if (_splitType == SplitType.itemized || _autoSyncAmountFromItems) {
+      _amountController.text = _itemizedCalculatedTotal.toStringAsFixed(2);
+    }
+  }
+
   void _addItemRow() {
     setState(() {
       _itemRows.add(_ItemRow(members: widget.members));
+      _syncAmountFromItems();
     });
   }
 
@@ -145,6 +192,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     setState(() {
       _itemRows[index].dispose();
       _itemRows.removeAt(index);
+      _syncAmountFromItems();
     });
   }
 
@@ -162,7 +210,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Who had what? Let AI automatically assign items.',
+              'Who had what? Let Smart Assign automatically assign items.',
               style: TextStyle(fontSize: 13, color: theme.textSecondary),
             ),
             const SizedBox(height: 12),
@@ -170,7 +218,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               controller: assignCtrl,
               style: TextStyle(color: theme.textPrimary),
               decoration: InputDecoration(
-                hintText: 'e.g., demo1 ate pasta, demo2 took burger',
+                hintText: 'e.g., Jake ate pasta, Alex took burger',
                 hintStyle: TextStyle(fontSize: 13, color: theme.textMuted),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -261,8 +309,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           (row) => row.nameCtrl.text.isEmpty && row.priceCtrl.text.isEmpty,
         );
 
-        double totalItemCost = 0.0;
-
         // Add parsed items
         for (int i = 0; i < receipt.items.length; i++) {
           final item = receipt.items[i];
@@ -270,28 +316,36 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           row.nameCtrl.text = item.name;
           row.priceCtrl.text = item.price.toStringAsFixed(2);
 
-          totalItemCost += item.price;
           _itemRows.add(row);
         }
 
-        // Add tax and fees based on percentages
-        final totalPercentage =
-            receipt.taxPercentage + receipt.serviceChargePercentage;
-        if (totalPercentage > 0) {
-          final calculatedTax = totalItemCost * (totalPercentage / 100.0);
-          final currentTax = _taxAndFeesAmount;
-          _taxAndFeesController.text = (currentTax + calculatedTax)
-              .toStringAsFixed(2);
+        _taxPercentageController.text = receipt.taxPercentage > 0
+            ? receipt.taxPercentage.toStringAsFixed(2)
+            : '';
+        _serviceChargePercentageController.text =
+            receipt.serviceChargePercentage > 0
+            ? receipt.serviceChargePercentage.toStringAsFixed(2)
+            : '';
+        if (receipt.discountPercentage > 0) {
+          _isDiscountPercentage = true;
+          _discountController.text = receipt.discountPercentage.toStringAsFixed(
+            2,
+          );
+        } else if (receipt.discountAmount > 0) {
+          _isDiscountPercentage = false;
+          _discountController.text = receipt.discountAmount.toStringAsFixed(2);
+        } else {
+          _discountController.text = '';
         }
+        _autoSyncAmountFromItems = true;
 
         // Ensure at least one row exists
-        if (_itemRows.isEmpty) _addItemRow();
+        if (_itemRows.isEmpty) {
+          _itemRows.add(_ItemRow(members: widget.members));
+        }
 
         // Update the main amount field with the overall total
-        final currentTaxVal = double.tryParse(_taxAndFeesController.text) ?? 0;
-        _amountController.text = (_itemsTotal + currentTaxVal).toStringAsFixed(
-          2,
-        );
+        _syncAmountFromItems();
       });
     } catch (e) {
       if (mounted) {
@@ -304,6 +358,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   void _submit() {
+    if (_titleController.text.trim().isEmpty) {
+      TopBanner.show(context, 'Please enter a title for this expense');
+      return;
+    }
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final expenseProvider = context.read<ExpenseProvider>();
@@ -350,16 +408,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         }
       }
 
-      // Proportional Tax Distribution
-      final taxAndFees = _taxAndFeesAmount;
-      if (taxAndFees > 0 && itemsTotalCost > 0) {
+      // Proportional Tax & Discount Distribution
+      final taxAndFees = _itemizedTaxAndServiceChargeTotal;
+      final netAdjustment = taxAndFees - _discountAmount;
+      if (netAdjustment != 0 && itemsTotalCost > 0) {
         for (final uid in splitMap.keys.toList()) {
           final ratio = splitMap[uid]! / itemsTotalCost;
-          splitMap[uid] = splitMap[uid]! + (taxAndFees * ratio);
+          splitMap[uid] = splitMap[uid]! + (netAdjustment * ratio);
         }
-      } else if (taxAndFees > 0 && itemsTotalCost == 0) {
-        // Fallback: Split tax equally among people in the splitMap if total items cost is 0
-        final share = taxAndFees / (splitMap.isEmpty ? 1 : splitMap.length);
+      } else if (netAdjustment != 0 && itemsTotalCost == 0) {
+        // Fallback: Split net adjustment equally among people in the splitMap if total items cost is 0
+        final share = netAdjustment / (splitMap.isEmpty ? 1 : splitMap.length);
         for (final uid in splitMap.keys.toList()) {
           splitMap[uid] = splitMap[uid]! + share;
         }
@@ -368,7 +427,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       expense = ExpenseModel(
         id: widget.existingExpense?.id ?? 'exp_$idBase',
         title: _titleController.text.trim(),
-        amount: itemsTotalCost + taxAndFees,
+        amount: itemsTotalCost + netAdjustment,
         payerId: _selectedPayerId,
         groupId: widget.groupId,
         splitType: SplitType.itemized,
@@ -455,7 +514,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       labelText: 'What was this expense?',
                       prefixIcon: Icon(Icons.receipt_outlined),
                     ),
-                    validator: (v) => v != null && v.trim().length >= 2
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) => v != null && v.trim().isNotEmpty
                         ? null
                         : 'Enter a title',
                   ),
@@ -550,7 +610,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         ],
                         onChanged: (val) {
                           if (val != null) {
-                            setState(() => _splitType = val);
+                            setState(() {
+                              _splitType = val;
+                              _syncAmountFromItems();
+                            });
                           }
                         },
                       ),
@@ -604,6 +667,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                           RegExp(r'[0-9.]'),
                                         ),
                                       ],
+                                      readOnly:
+                                          _splitType == SplitType.itemized,
                                       style: TextStyle(
                                         color: theme.textPrimary,
                                         fontSize: 18,
@@ -884,7 +949,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-  // Equal Split 
+  // Equal Split
   Widget _buildEqualTab(AppDynColors theme, NumberFormat currencyFmt) {
     final total = _parsedAmount;
     final perPerson = widget.members.isNotEmpty
@@ -950,7 +1015,187 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  // Itemized Split 
+  Widget _buildPercentageFieldRow({
+    required AppDynColors theme,
+    required NumberFormat currencyFmt,
+    required String label,
+    required TextEditingController controller,
+    required double amount,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 96,
+            child: TextFormField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: theme.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.success.withValues(alpha: 0.06),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                suffixText: '%',
+                suffixStyle: TextStyle(color: theme.textMuted, fontSize: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: AppColors.success,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              onChanged: (_) {
+                setState(() {
+                  _syncAmountFromItems();
+                });
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            currencyFmt.format(amount),
+            style: GoogleFonts.inter(
+              color: AppColors.success,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiscountFieldRow({
+    required AppDynColors theme,
+    required NumberFormat currencyFmt,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Text(
+            'Discount',
+            style: GoogleFonts.inter(
+              color: theme.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          Spacer(),
+          SizedBox(
+            width: 96,
+            child: TextFormField(
+              controller: _discountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: theme.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.warning.withValues(alpha: 0.06),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                suffixText: _isDiscountPercentage ? '%' : 'RM',
+                suffixStyle: TextStyle(color: theme.textMuted, fontSize: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: AppColors.warning,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              onChanged: (_) {
+                setState(() {
+                  _syncAmountFromItems();
+                });
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '-${currencyFmt.format(_discountAmount)}',
+            style: GoogleFonts.inter(
+              color: AppColors.warning,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Itemized Split
   Widget _buildItemizedTab(AppDynColors theme, NumberFormat currencyFmt) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1007,12 +1252,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             index: index,
             members: widget.members,
             onRemove: _itemRows.length > 1 ? () => _removeItemRow(index) : null,
-            onChanged: () => setState(() {}),
+            onChanged: () {
+              setState(() {
+                _syncAmountFromItems();
+              });
+            },
             theme: theme,
           );
         }),
-
-        const SizedBox(height: 16),
         // Add item button
         Center(
           child: TextButton.icon(
@@ -1022,7 +1269,25 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             style: TextButton.styleFrom(foregroundColor: AppColors.success),
           ),
         ),
-        if (_itemsTotal > 0 || _taxAndFeesAmount > 0) ...[
+        const SizedBox(height: 12),
+        if (_splitType == SplitType.itemized) ...[
+          _buildDiscountFieldRow(theme: theme, currencyFmt: currencyFmt),
+          _buildPercentageFieldRow(
+            theme: theme,
+            currencyFmt: currencyFmt,
+            label: 'SST',
+            controller: _taxPercentageController,
+            amount: _taxAmount,
+          ),
+          _buildPercentageFieldRow(
+            theme: theme,
+            currencyFmt: currencyFmt,
+            label: 'Service Charge',
+            controller: _serviceChargePercentageController,
+            amount: _serviceChargeAmount,
+          ),
+        ],
+        if (_itemsTotal > 0 || _itemizedTaxAndServiceChargeTotal > 0) ...[
           const SizedBox(height: 12),
           // Footer totals
           Container(
@@ -1053,20 +1318,67 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ),
                   ],
                 ),
-                if (_taxAndFeesAmount > 0) ...[
+                if (_discountAmount > 0) ...[
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Tax & Fees (Proportional)',
+                        'Discount',
                         style: GoogleFonts.inter(
                           color: theme.textSecondary,
                           fontSize: 14,
                         ),
                       ),
                       Text(
-                        currencyFmt.format(_taxAndFeesAmount),
+                        '-${currencyFmt.format(_discountAmount)}',
+                        style: GoogleFonts.inter(
+                          color: AppColors.warning,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (_taxAmount > 0 || _taxPercentageController.text.isNotEmpty)
+                  const SizedBox(height: 8),
+                if (_taxAmount > 0 || _taxPercentageController.text.isNotEmpty)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Tax',
+                        style: GoogleFonts.inter(
+                          color: theme.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '${_taxPercentageController.text.isEmpty ? '0' : _taxPercentageController.text}% (${currencyFmt.format(_taxAmount)})',
+                        style: GoogleFonts.inter(
+                          color: theme.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                if (_serviceChargeAmount > 0 ||
+                    _serviceChargePercentageController.text.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Service Charge',
+                        style: GoogleFonts.inter(
+                          color: theme.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '${_serviceChargePercentageController.text.isEmpty ? '0' : _serviceChargePercentageController.text}% (${currencyFmt.format(_serviceChargeAmount)})',
                         style: GoogleFonts.inter(
                           color: theme.textPrimary,
                           fontSize: 14,
@@ -1092,7 +1404,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       ),
                     ),
                     Text(
-                      currencyFmt.format(_itemsTotal + _taxAndFeesAmount),
+                      currencyFmt.format(_itemizedCalculatedTotal),
                       style: GoogleFonts.inter(
                         color: theme.textPrimary,
                         fontSize: 18,
@@ -1131,15 +1443,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       splitMap[uid] = (splitMap[uid] ?? 0) + perUser;
                     }
                   }
-                  final taxAndFees = _taxAndFeesAmount;
-                  if (taxAndFees > 0 && itemsTotalCost > 0) {
+                  final taxAndFees = _itemizedTaxAndServiceChargeTotal;
+                  final netAdjustment = taxAndFees - _discountAmount;
+                  if (netAdjustment != 0 && itemsTotalCost > 0) {
                     for (final uid in splitMap.keys.toList()) {
                       final ratio = splitMap[uid]! / itemsTotalCost;
-                      splitMap[uid] = splitMap[uid]! + (taxAndFees * ratio);
+                      splitMap[uid] = splitMap[uid]! + (netAdjustment * ratio);
                     }
-                  } else if (taxAndFees > 0 && itemsTotalCost == 0) {
+                  } else if (netAdjustment != 0 && itemsTotalCost == 0) {
                     final share =
-                        taxAndFees / (splitMap.isEmpty ? 1 : splitMap.length);
+                        netAdjustment /
+                        (splitMap.isEmpty ? 1 : splitMap.length);
                     for (final uid in splitMap.keys.toList()) {
                       splitMap[uid] = splitMap[uid]! + share;
                     }
@@ -1183,7 +1497,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  // Custom Split 
+  // Custom Split
   Widget _buildCustomTab(AppDynColors theme, NumberFormat currencyFmt) {
     final total = _parsedAmount;
 
@@ -1554,7 +1868,7 @@ class _ThreeDotsLoadingState extends State<_ThreeDotsLoading>
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: opacity.clamp(0.0, 1.0)),
+            color: AppColors.accent.withValues(alpha: opacity.clamp(0.0, 1.0)),
             shape: BoxShape.circle,
           ),
         );
@@ -1614,17 +1928,25 @@ class _ItemRowWidget extends StatefulWidget {
 }
 
 class _ItemRowWidgetState extends State<_ItemRowWidget> {
-  bool _expanded = false;
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.row.selectedMemberIds.isNotEmpty;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final price = double.tryParse(widget.row.priceCtrl.text) ?? 0;
-    final assigneeCount = widget.row.selectedMemberIds.isEmpty
+    final isSharedByAll = widget.row.selectedMemberIds.isEmpty;
+    final assigneeCount = isSharedByAll
         ? widget.members.length
         : widget.row.selectedMemberIds.length;
     final perPerson = assigneeCount > 0 ? price / assigneeCount : 0.0;
     final currencyFmt = NumberFormat.currency(symbol: 'RM ', decimalDigits: 2);
+    final showSelector = _expanded || !isSharedByAll;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1731,7 +2053,7 @@ class _ItemRowWidgetState extends State<_ItemRowWidget> {
                 IconButton(
                   onPressed: () => setState(() => _expanded = !_expanded),
                   icon: AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
+                    turns: showSelector ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
                     child: Icon(
                       Icons.expand_more_rounded,
@@ -1756,15 +2078,13 @@ class _ItemRowWidgetState extends State<_ItemRowWidget> {
               ],
             ),
           ),
-          if (perPerson > 0 && !_expanded)
+          if (isSharedByAll && perPerson > 0)
             Padding(
               padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
               child: Row(
                 children: [
                   Text(
-                    widget.row.selectedMemberIds.isEmpty
-                        ? 'Shared by all'
-                        : 'Shared by ${widget.row.selectedMemberIds.length}',
+                    'Shared by all',
                     style: GoogleFonts.inter(
                       color: theme.textSecondary,
                       fontSize: 11,
@@ -1774,7 +2094,7 @@ class _ItemRowWidgetState extends State<_ItemRowWidget> {
                   Text(
                     '${currencyFmt.format(perPerson)} each',
                     style: GoogleFonts.inter(
-                      color: AppColors.primary,
+                      color: AppColors.success,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1782,8 +2102,7 @@ class _ItemRowWidgetState extends State<_ItemRowWidget> {
                 ],
               ),
             ),
-          // Expanded member selector
-          if (_expanded)
+          if (showSelector)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Column(
@@ -1792,7 +2111,7 @@ class _ItemRowWidgetState extends State<_ItemRowWidget> {
                   Divider(height: 1, color: theme.cardBorder),
                   const SizedBox(height: 10),
                   Text(
-                    'Assign to (leave blank for all):',
+                    'Assigned to:',
                     style: GoogleFonts.inter(
                       color: theme.textSecondary,
                       fontSize: 11,
@@ -1815,6 +2134,7 @@ class _ItemRowWidgetState extends State<_ItemRowWidget> {
                             } else {
                               widget.row.selectedMemberIds.add(member.id);
                             }
+                            _expanded = widget.row.selectedMemberIds.isNotEmpty;
                           });
                           widget.onChanged();
                         },

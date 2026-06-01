@@ -6,6 +6,7 @@ import '../../core/models/expense_model.dart';
 import '../../core/providers/groups_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/member_avatar.dart';
+import '../../core/providers/expense_provider.dart';
 import 'add_expense_screen.dart';
 
 class ExpenseDetailScreen extends StatelessWidget {
@@ -17,12 +18,19 @@ class ExpenseDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = AppDynColors.of(context);
     final groupsProvider = context.watch<GroupsProvider>();
-    final payer = groupsProvider.getUserById(expense.payerId);
+    final expenseProvider = context.watch<ExpenseProvider>();
+    
+    final currentExpense = expenseProvider.expenses.firstWhere(
+      (e) => e.id == expense.id,
+      orElse: () => expense,
+    );
+
+    final payer = groupsProvider.getUserById(currentExpense.payerId);
     final currencyFmt = NumberFormat.currency(symbol: 'RM ', decimalDigits: 2);
     final dateFmt = DateFormat('EEEE, MMMM d, yyyy');
 
     Color splitColor;
-    switch (expense.splitType) {
+    switch (currentExpense.splitType) {
       case SplitType.equal:
         splitColor = AppColors.primary;
         break;
@@ -48,14 +56,14 @@ class ExpenseDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit_rounded, size: 20),
             onPressed: () {
-              final groupMembers = groupsProvider.getMembersOfGroup(expense.groupId);
+              final groupMembers = groupsProvider.getMembersOfGroup(currentExpense.groupId);
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => AddExpenseScreen(
-                    groupId: expense.groupId,
+                    groupId: currentExpense.groupId,
                     members: groupMembers,
-                    existingExpense: expense,
+                    existingExpense: currentExpense,
                   ),
                 ),
               );
@@ -92,7 +100,7 @@ class ExpenseDetailScreen extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        '${expense.splitType.icon}  ${expense.splitType.label} Split',
+                        '${currentExpense.splitType.icon}  ${currentExpense.splitType.label} Split',
                         style: GoogleFonts.inter(
                           color: splitColor,
                           fontSize: 12,
@@ -102,7 +110,7 @@ class ExpenseDetailScreen extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text(
-                      dateFmt.format(expense.date),
+                      dateFmt.format(currentExpense.date),
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 11,
@@ -112,7 +120,7 @@ class ExpenseDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  expense.title,
+                  currentExpense.title,
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 24,
@@ -121,7 +129,7 @@ class ExpenseDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  currencyFmt.format(expense.amount),
+                  currencyFmt.format(currentExpense.amount),
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 36,
@@ -149,8 +157,8 @@ class ExpenseDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           // Itemized breakdown
-          if (expense.splitType == SplitType.itemized &&
-              expense.items.isNotEmpty) ...[
+          if (currentExpense.splitType == SplitType.itemized &&
+              currentExpense.items.isNotEmpty) ...[
             Text(
               'Items',
               style: GoogleFonts.inter(
@@ -160,7 +168,7 @@ class ExpenseDetailScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            ...expense.items.map((item) {
+            ...currentExpense.items.map((item) {
               final assignees = item.assignedUserIds
                   .map((id) => groupsProvider.getUserById(id))
                   .where((u) => u != null)
@@ -236,12 +244,12 @@ class ExpenseDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...expense.splits.map((split) {
+          ...currentExpense.splits.map((split) {
             final user = groupsProvider.getUserById(split.userId);
             if (user == null) return const SizedBox.shrink();
-            final isPayer = split.userId == expense.payerId;
+            final isPayer = split.userId == currentExpense.payerId;
             final netAmount = isPayer
-                ? expense.amount - split.amount
+                ? currentExpense.amount - split.amount
                 : -split.amount;
             return Container(
               margin: const EdgeInsets.only(bottom: 8),

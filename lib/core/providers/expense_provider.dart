@@ -226,6 +226,14 @@ class ExpenseProvider with ChangeNotifier {
   }
 
   Future<void> updateExpense(ExpenseModel expense) async {
+    // Optimistic local update for instant UI feedback
+    final index = _expenses.indexWhere((e) => e.id == expense.id);
+    if (index != -1) {
+      _expenses[index] = expense;
+      _settlements.clear();
+      notifyListeners();
+    }
+
     try {
       await FirebaseFirestore.instance
           .collection('expenses')
