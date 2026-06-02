@@ -5,7 +5,6 @@ A collaborative expense splitter that reads your receipts and divides the bill y
 ## 🚀 Try It Out
 
 - **🌐 Live Web App:** [tabz-expense-splitter.web.app](https://tabz-expense-splitter.web.app/)
-- **📥 Android APK:** [Download Tabz v1.0 APK](build/app/outputs/flutter-apk/Tabz-v1.0.apk)
 
 ## 🏆 About This Project
 
