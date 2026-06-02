@@ -2,6 +2,11 @@
 
 A collaborative expense splitter that reads your receipts and divides the bill your way — equally, by item, or by percentage.
 
+## 🚀 Try It Out
+
+- **🌐 Live Web App:** [tabz-expense-splitter.web.app](https://tabz-expense-splitter.web.app/)
+- **📥 Android APK:** [Download Tabz v1.0 APK](build/app/outputs/flutter-apk/Tabz-v1.0.apk)
+
 ## 🏆 About This Project
 
 Tabz simplifies group expense tracking and settlement. Whether you're splitting rent with roommates, sharing a vacation budget, or tracking group outings, Tabz makes it effortless to:
