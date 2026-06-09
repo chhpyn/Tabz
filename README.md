@@ -4,6 +4,7 @@ A collaborative expense splitter that reads your receipts and divides the bill y
 
 ## 🚀 Try It Out
 
+Demo Account: allen@tabz.com Password: allen123
 - **🌐 Live Web App:** [tabz-expense-splitter.web.app](https://tabz-expense-splitter.web.app/)
 - **📥 Android APK:** [Download Tabz v1.0 APK](https://github.com/chhpyn/tabz/releases/latest)
 
@@ -37,7 +38,6 @@ This project showcases:
 - **Multi-platform Support** - Single Flutter codebase for Android, iOS, Web, Windows, macOS, and Linux
 - **Authentication** - Secure OAuth 2.0 implementation with Google Sign-In
 - **Persistent Storage** - Local preferences management with SharedPreferences
-- **Best Practices** - Modular architecture, separation of concerns, and reactive programming patterns
 - **UI/UX** - Material Design 3 compliance with dark/light mode support and smooth animations
 
 ### Tech Stack
@@ -133,7 +133,7 @@ lib/
 3. Select how to split the expense:
    - **Equally** - Split among all members
    - **By Item** - Assign specific items to members
-   - **By Percentage** - Custom percentage distribution
+   - **By Custom Split** - Custom fixed amount or percentage distribution
 4. Confirm and save
 
 ### View and Settle Expenses
